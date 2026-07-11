@@ -177,6 +177,29 @@ class SourceType(TypedDict, total=False):
     pass
 
 
+# =============================================================================
+# [MỚI — CODER 3 — Vấn đề #1: Scope/Blueprint Filtering] Anchor terms
+# =============================================================================
+# Dùng bởi t0_search.py::generate_queries_for_field() để ràng buộc search
+# engine trả về kết quả thuộc phạm vi worldbuilding/sci-fi/fantasy, thay vì
+# kết quả chung chung (VD: "terrain patterns geology" thay vì chỉ
+# "terrain patterns"). Chỉ dùng để filter/rerank query — KHÔNG generate
+# content mới, tuân thủ nguyên tắc chung §0/§7.
+WORLDBUILDING_ANCHOR_TERMS: List[str] = [
+    "worldbuilding",
+    "sci-fi world design",
+    "alien planet concept",
+    "fantasy world",
+    "fictional civilization",
+    "extraterrestrial species",
+    "concept art worldbuilding",
+    "speculative fiction design",
+]
+
+# Số lượng anchor term inject vào mỗi query (không inject tất cả để tránh quá dài)
+WORLDBUILDING_ANCHOR_INJECT_COUNT: int = 1
+
+
 def _flatten_leaf_fields(node: dict, prefix: str = "") -> List[str]:
     """Duyệt đệ quy 1 sub-dict của MASTER_SCHEMA_2_0, trả list dot-path
     của các field lá (leaf = giá trị không phải dict lồng thêm)."""
