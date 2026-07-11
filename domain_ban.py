@@ -14,7 +14,11 @@ Module này tập trung toàn bộ logic vào 1 nơi, dùng chung cho T0 và T2:
 """
 from datetime import datetime, timezone, timedelta
 
-BAN_COOLDOWN_DAYS = 7        # Sau 7 ngày, domain tự động được thử lại
+# [CODER 1 — Blackbook Lifecycle] BAN_COOLDOWN_DAYS đọc từ env var để CI test
+# có thể override về "0" (không cần chờ cooldown thật khi test), production
+# vẫn mặc định 7 ngày như cũ nếu không set env.
+import os as _os_ban
+BAN_COOLDOWN_DAYS = int(_os_ban.getenv("BAN_COOLDOWN_DAYS", "7"))
 BAN_THRESHOLD_FAILURES = 3   # Số lần fail liên tiếp trước khi ban tạm thời
 
 # =============================================================================
@@ -163,3 +167,63 @@ def get_adapter_label(blackbook: dict, domain: str) -> str | None:
     # Chỉ trả về nếu là tên adapter hợp lệ (không trả "HTTP" mặc định cũ)
     valid_adapters = {"tier1_http", "tier2_reader", "tier3_browser", "tier4_stealth_tls"}
     return adapter if adapter in valid_adapters else None
+
+
+# =============================================================================
+# [MỚI — CODER 1 — Vấn đề #3: Blackbook Lifecycle] Reset chủ động
+# =============================================================================
+# Trước đây blackbook chỉ có 1 chiều: domain bị ban thì phải tự hết hạn
+# cooldown mới gỡ được, không có cách nào reset chủ động ngoài sửa code (bump
+# cache key trong harvest.yml) rồi merge PR. Hai hàm dưới đây cho phép người
+# vận hành gỡ ban chủ động qua RESET_BLACKBOOK=true (main.py gọi
+# force_unban_all()) hoặc qua code/test gọi trực tiếp reset_test_domains()
+# cho một danh sách domain cụ thể (không đụng phần còn lại của blackbook).
+
+def force_unban_all(blackbook: dict) -> int:
+    """Gỡ ban TOÀN BỘ domain đang có status='banned', reset về 'active'.
+
+    Dùng khi RESET_BLACKBOOK=true (trigger từ harvest.yml input).
+    KHÔNG xóa round-robin cursor hay adapter_label (chỉ xóa trạng thái ban).
+
+    Returns:
+        Số domain được gỡ ban.
+    """
+    count = 0
+    for domain, entry in blackbook.items():
+        if isinstance(entry, dict) and entry.get("status") == "banned":
+            entry["status"] = "active"
+            entry["failures"] = 0
+            entry.pop("banned_until", None)
+            count += 1
+    return count
+
+
+def reset_test_domains(blackbook: dict, domains) -> int:
+    """Reset HOÀN TOÀN trạng thái của một danh sách domain cụ thể (failures,
+    status, banned_until, skill, adapter_label_valid_until) — dùng khi cần
+    dọn sạch state của một vài domain dùng để test/thử nghiệm mà KHÔNG muốn
+    ảnh hưởng tới toàn bộ blackbook (khác với force_unban_all(), vốn gỡ ban
+    TẤT CẢ domain).
+
+    Nếu domain chưa từng có entry trong blackbook, hàm bỏ qua (không tạo mới
+    entry rỗng) — chỉ reset những domain đã tồn tại.
+
+    Args:
+        blackbook: object blackbook đang chạy (mutate in-place).
+        domains: iterable các domain (str) cần reset.
+
+    Returns:
+        Số domain thực sự được reset (đã tồn tại trong blackbook).
+    """
+    count = 0
+    for domain in domains:
+        entry = blackbook.get(domain)
+        if not isinstance(entry, dict):
+            continue
+        entry["failures"] = 0
+        entry["status"] = "active"
+        entry.pop("banned_until", None)
+        entry.pop("skill", None)
+        entry.pop("adapter_label_valid_until", None)
+        count += 1
+    return count

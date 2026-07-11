@@ -196,6 +196,36 @@ def _visual_blueprint_collection_is_empty() -> bool:
         return True
 
 
+# =============================================================================
+# [CODER 2 — Budget Theo Thời Gian, Vấn đề #2] Graceful stop từ bên trong
+# Python, thay cho hard-kill timeout-minutes của GitHub Actions.
+# =============================================================================
+def _check_time_and_stop(budget, obs, step_name: str) -> bool:
+    """Kiểm tra time budget sau mỗi bước lớn.
+
+    Returns:
+        True nếu time budget đã cạn (caller phải dừng ngay, return kết quả tạm).
+        False nếu vẫn còn thời gian (tiếp tục bình thường).
+    """
+    if budget.is_time_budget_exhausted():
+        remaining = budget.seconds_remaining()  # sẽ âm
+        logger.warning(
+            f"⏱️ [MAIN] Time budget cạn sau bước '{step_name}' "
+            f"({abs(remaining):.0f}s quá hạn). Graceful stop."
+        )
+        if obs:
+            obs.event(
+                step=step_name, agent="main", status="GRACEFUL_STOP",
+                message=(
+                    f"Time budget exhausted — pipeline dừng sau '{step_name}'. "
+                    f"Blackbook sẽ được lưu trong finally block."
+                ),
+                extra={"budget": budget.snapshot().to_dict()},
+            )
+        return True
+    return False
+
+
 async def run_pipeline_once(cfg=None) -> dict:
     """Chạy đúng 1 chu kỳ đầy đủ của Repo 1: t0 -> t1 -> t2 -> summarizer
     -> t3 -> t4 -> t5. Trả về Upload Report tổng hợp."""
@@ -215,10 +245,26 @@ async def run_pipeline_once(cfg=None) -> dict:
                   "max_urls": budget.max_urls,
                   "max_gemini_calls": budget.max_gemini_calls,
                   "max_tokens": budget.max_tokens,
+                  "max_seconds": budget.max_seconds,  # [MỚI — CODER 2]
               }})
 
     # (1) Load blackbook MỘT lần duy nhất cho cả chu kỳ.
     blackbook = load_blackbook(cfg.BLACKBOOK_PATH)
+
+    # [CODER 1] Reset blackbook nếu được yêu cầu qua env var
+    import os as _os
+    if _os.getenv("RESET_BLACKBOOK", "false").lower() == "true":
+        from domain_ban import force_unban_all
+        unban_count = force_unban_all(blackbook)
+        logger.warning(
+            f"⚠️ [MAIN] RESET_BLACKBOOK=true — đã gỡ ban {unban_count} domain. "
+            "Blackbook vẫn giữ round-robin cursor và adapter labels."
+        )
+        if obs:
+            obs.event(
+                step="PIPELINE_START", agent="main", status="WARNING",
+                message=f"RESET_BLACKBOOK triggered — {unban_count} domains unbanned.",
+            )
 
     # (2) [MỚI — Progressive Gap Filling] Load pending_fields TRƯỚC T0.
     pending_fields = _load_pending_fields_from_db()
@@ -264,6 +310,10 @@ async def run_pipeline_once(cfg=None) -> dict:
                       message="T0 không trả về URL nào — dừng chu kỳ.")
             return {"new": 0, "merged": 0, "rejected": 0, "errors": ["t0_empty"]}
 
+        # [CODER 2] Time-budget check sau T0
+        if _check_time_and_stop(budget, obs, "T0_SEARCH"):
+            return {"new": 0, "merged": 0, "rejected": 0, "errors": ["graceful_stop_after_t0"]}
+
         # === T1: Classify (Gate 1) ===
         classified = classify_and_rank(search_results)
         obs.event(step="T1_CLASSIFY", agent="t1_classify", status="SUCCESS",
@@ -275,6 +325,10 @@ async def run_pipeline_once(cfg=None) -> dict:
                       message="T1 không còn URL nào sau Gate 1 — dừng chu kỳ.")
             return {"new": 0, "merged": 0, "rejected": 0, "errors": ["t1_empty"]}
 
+        # [CODER 2] Time-budget check sau T1
+        if _check_time_and_stop(budget, obs, "T1_CLASSIFY"):
+            return {"new": 0, "merged": 0, "rejected": 0, "errors": ["graceful_stop_after_t1"]}
+
         # === T2: Scrape (Gate 2, async, CÙNG object blackbook với T0) ===
         scraped_docs = await run_scrape_pipeline(classified, blackbook, budget=budget, obs=obs)
         obs.event(step="T2_SCRAPE", agent="t2_scrape", status="SUCCESS",
@@ -285,6 +339,10 @@ async def run_pipeline_once(cfg=None) -> dict:
             obs.event(step="T2_SCRAPE", agent="t2_scrape", status="WARNING",
                       message="T2 không còn document nào sau Gate 2 — dừng chu kỳ.")
             return {"new": 0, "merged": 0, "rejected": 0, "errors": ["t2_empty"]}
+
+        # [CODER 2] Time-budget check sau T2
+        if _check_time_and_stop(budget, obs, "T2_SCRAPE"):
+            return {"new": 0, "merged": 0, "rejected": 0, "errors": ["graceful_stop_after_t2"]}
 
         # === Summarizer: Phase A + Phase B (Gate 3 + Gate 4) ===
         # Chạy tuần tự (không async) vì Gemini Free Tier giới hạn request/phút —
@@ -301,6 +359,13 @@ async def run_pipeline_once(cfg=None) -> dict:
                 obs.event(step="T3_SUMMARIZE", agent="summarizer", status="ERROR",
                           message=f"Lỗi summarizer cho 1 document: {e}")
                 continue
+
+            # [CODER 2] Time-budget check SAU MỖI document (không chỉ sau
+            # cả batch) — Summarizer là bước tốn thời gian nhất (gọi Gemini
+            # tuần tự). break (không return) để tiếp tục T3 -> T5 với
+            # combined_outputs đã có, dù chưa đủ hết scraped_docs.
+            if _check_time_and_stop(budget, obs, "SUMMARIZER_DOC"):
+                break
 
         phase_a_ok_count = sum(1 for c in combined_outputs if c.get("phase_a_ok"))
         obs.event(step="T3_SUMMARIZE", agent="summarizer", status="SUCCESS",
