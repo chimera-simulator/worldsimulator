@@ -60,6 +60,8 @@ jobs:
           "
 
       - name: Run unit tests (rule_library + t3_normalize Check G)
+        env:
+          BAN_COOLDOWN_DAYS: "0"  # Trong CI test, không có real cooldown để test dễ hơn
         run: |
           python -m unittest tests.test_rule_library -v
           python -m unittest tests.test_t3_normalize_check_g -v

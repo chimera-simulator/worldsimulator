@@ -14,6 +14,19 @@ on:
         default: "false"
         type: choice
         options: ["true", "false"]
+      # [CODER 1 — Blackbook Lifecycle] Cho phép người vận hành chủ động
+      # force reset cache blackbook (đổi slot) mà KHÔNG cần sửa code/merge PR.
+      blackbook_cache_slot:
+        description: "Cache slot cho blackbook (đổi sang slot mới để force reset, VD: v3, v4...)"
+        required: false
+        default: "v2"
+        type: string
+      reset_blackbook:
+        description: "Xóa toàn bộ trạng thái banned trước khi chạy (dùng khi blackbook bị đóng băng)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
   schedule:
     # 06:00 UTC mỗi ngày (~13:00 giờ VN) — 1 chu kỳ/ngày, điều chỉnh theo nhu cầu.
     - cron: "0 6 * * *"
@@ -26,7 +39,12 @@ concurrency:
 jobs:
   harvest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # [CODER 2 — Budget Theo Thời Gian, 2026-07-11] Tăng từ 30 -> 55 phút.
+    # Python tự graceful stop lúc 45 phút (BUDGET_MAX_SECONDS=2700, xem
+    # core/budget_manager.py + main.py::_check_time_and_stop()). 55 phút ở
+    # đây chỉ còn là "cầu chì cuối" phòng trường hợp Python bị treo/deadlock
+    # (timeout-minutes của GitHub là hard-kill, không có cleanup).
+    timeout-minutes: 55
 
     steps:
       - name: Checkout
@@ -57,16 +75,26 @@ jobs:
       # t0_search.py (đã fix). Bump key để lần chạy này CACHE-MISS có
       # chủ đích, main.py tự tạo blackbook rỗng (xem load_blackbook() —
       # không thấy file -> trả schema rỗng mặc định), không cần xoá cache
-      # cũ qua API. Có thể đổi lại "repo1-blackbook-v1" sau khi cache v2
-      # đã chạy ổn định vài lần, hoặc giữ nguyên v2 vĩnh viễn cũng được.
+      # cũ qua API.
+      # [CODER 1 — Blackbook Lifecycle, 2026-07-11] Cache key immutable theo
+      # GitHub Actions -> không ghi đè/xóa được qua workflow, mỗi lần muốn
+      # reset trước đây phải sửa code (bump version) + merge PR. Giờ key lấy
+      # từ input `blackbook_cache_slot` (mặc định "v2") -> người vận hành có
+      # thể chủ động đổi sang slot mới (VD: v3, v4...) ngay khi trigger
+      # workflow_dispatch, không cần sửa code.
       - name: Restore blackbook.json (round-robin/dedup state)
         uses: actions/cache/restore@v4
         with:
           path: blackbook.json
-          key: repo1-blackbook-v2
+          key: repo1-blackbook-${{ inputs.blackbook_cache_slot || 'v2' }}
 
       - name: Run harvest cycle (T0 -> T5)
         env:
+          # [CODER 1 — Blackbook Lifecycle] Gỡ ban toàn bộ domain trước khi
+          # chạy nếu người vận hành trigger workflow_dispatch với
+          # reset_blackbook=true (xem domain_ban.force_unban_all() +
+          # main.py ngay sau load_blackbook()).
+          RESET_BLACKBOOK: ${{ inputs.reset_blackbook || 'false' }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'world_simulator' }}
           GEMINI_MODEL_NO_1: ${{ secrets.GEMINI_KEY_1 }}
@@ -83,6 +111,9 @@ jobs:
           BUDGET_MAX_GEMINI_CALLS: ${{ vars.BUDGET_MAX_GEMINI_CALLS || '300' }}
           BUDGET_MAX_TOKENS:       ${{ vars.BUDGET_MAX_TOKENS || '300000' }}
           BUDGET_MAX_BROWSER_CALLS: ${{ vars.BUDGET_MAX_BROWSER_CALLS || '15' }}
+          # [CODER 2 — Budget Theo Thời Gian] Graceful-stop time budget (giây).
+          # 2700s = 45 phút, margin 10 phút trước timeout-minutes=55 ở trên.
+          BUDGET_MAX_SECONDS: ${{ vars.BUDGET_MAX_SECONDS || '2700' }}
         run: python main.py
 
       # Luôn lưu lại blackbook.json mới nhất, kể cả khi bước trên fail giữa
@@ -92,7 +123,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: blackbook.json
-          key: repo1-blackbook-v2
+          key: repo1-blackbook-${{ inputs.blackbook_cache_slot || 'v2' }}
 
       - name: Upload run log as artifact
         if: always()
