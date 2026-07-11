@@ -28,6 +28,8 @@ class BudgetSnapshot:
     elapsed_seconds: float
     browser_calls_used: int = 0
     browser_calls_max: int = 0
+    # [CODER 2 — Budget Theo Thời Gian] time budget tại thời điểm snapshot.
+    max_seconds: int = 0
 
     @property
     def urls_remaining(self) -> int:
@@ -40,6 +42,13 @@ class BudgetSnapshot:
     @property
     def tokens_remaining(self) -> int:
         return max(0, self.tokens_max - self.tokens_used)
+
+    @property
+    def seconds_remaining(self) -> float:
+        """Số giây còn lại trước khi time budget cạn (có thể âm nếu quá hạn).
+        Tính từ `elapsed_seconds` đã chốt tại thời điểm snapshot() — không
+        gọi lại time.monotonic() ở đây để snapshot bất biến sau khi tạo."""
+        return self.max_seconds - self.elapsed_seconds
 
     def to_dict(self) -> dict:
         return {
@@ -55,6 +64,8 @@ class BudgetSnapshot:
             "elapsed_seconds": round(self.elapsed_seconds, 2),
             "browser_calls_used": self.browser_calls_used,
             "browser_calls_max": self.browser_calls_max,
+            "max_seconds": self.max_seconds,                       # [MỚI — CODER 2]
+            "seconds_remaining": round(self.seconds_remaining, 2),  # [MỚI — CODER 2]
         }
 
 
@@ -74,6 +85,10 @@ class BudgetManager:
     DEFAULT_MAX_GEMINI_CALLS = 300
     DEFAULT_MAX_TOKENS = 300_000
     DEFAULT_MAX_BROWSER_CALLS = 15  # Playwright ~3-8s/lần, trần thấp tránh vượt 30 phút
+    # [CODER 2 — Budget Theo Thời Gian] 45 phút — graceful stop từ bên trong
+    # Python TRƯỚC khi GitHub Actions hard-kill lúc 55 phút (timeout-minutes
+    # trong harvest.yml). Xem mục 5 SPEC_HARVEST_CYCLE_FIXES cho tính toán quota.
+    DEFAULT_MAX_SECONDS = 2700
 
     def __init__(
         self,
@@ -81,6 +96,7 @@ class BudgetManager:
         max_gemini_calls: Optional[int] = None,
         max_tokens: Optional[int] = None,
         max_browser_calls: Optional[int] = None,   # [MỚI]
+        max_seconds: Optional[int] = None,         # [MỚI — CODER 2]
     ):
         self.max_urls = max_urls if max_urls is not None else int(
             os.getenv("BUDGET_MAX_URLS", str(self.DEFAULT_MAX_URLS))
@@ -96,6 +112,12 @@ class BudgetManager:
         # "is not None" để 0 được tôn trọng đúng nghĩa.
         self.max_browser_calls = max_browser_calls if max_browser_calls is not None else int(
             os.getenv("BUDGET_MAX_BROWSER_CALLS", str(self.DEFAULT_MAX_BROWSER_CALLS))
+        )
+        # [CODER 2 — Budget Theo Thời Gian] "is not None" để 0 được tôn trọng
+        # đúng nghĩa (giống pattern max_browser_calls ở trên), không rơi về
+        # default khi caller cố tình truyền 0 (VD: test graceful-stop ngay lập tức).
+        self.max_seconds = max_seconds if max_seconds is not None else int(
+            os.getenv("BUDGET_MAX_SECONDS", str(self.DEFAULT_MAX_SECONDS))
         )
 
         self._urls_used: int = 0
@@ -158,6 +180,7 @@ class BudgetManager:
                 elapsed_seconds=time.monotonic() - self._start_time,
                 browser_calls_used=self._browser_calls_used,   # [MỚI]
                 browser_calls_max=self.max_browser_calls,      # [MỚI]
+                max_seconds=self.max_seconds,                  # [MỚI — CODER 2]
             )
 
     def is_url_budget_exhausted(self) -> bool:
@@ -170,3 +193,21 @@ class BudgetManager:
                 self._gemini_calls_used >= self.max_gemini_calls
                 or self._tokens_used >= self.max_tokens
             )
+
+    # ------------------------------------------------------------------
+    # [CODER 2 — Budget Theo Thời Gian, Vấn đề #2]
+    # ------------------------------------------------------------------
+    def is_time_budget_exhausted(self) -> bool:
+        """True nếu đã chạy quá max_seconds kể từ khi BudgetManager được
+        khởi tạo.
+
+        Dùng để graceful stop từ bên trong Python — KHÔNG phụ thuộc vào
+        timeout-minutes của GitHub Actions (đó là hard kill không có cleanup).
+        """
+        with self._lock:
+            return (time.monotonic() - self._start_time) >= self.max_seconds
+
+    def seconds_remaining(self) -> float:
+        """Số giây còn lại trước khi time budget cạn. Có thể âm nếu đã quá hạn."""
+        with self._lock:
+            return self.max_seconds - (time.monotonic() - self._start_time)
