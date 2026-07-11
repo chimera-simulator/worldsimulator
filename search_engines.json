@@ -1,0 +1,62 @@
+{
+  "engines": [
+    {
+      "name": "DuckDuckGo",
+      "url_template": "https://html.duckduckgo.com/html/?q={query}",
+      "method": "GET",
+      "link_selector": "a.result__a",
+      "exclude_domain_in_href": "duckduckgo.com",
+      "priority": 1
+    },
+    {
+      "name": "Brave",
+      "url_template": "https://search.brave.com/search?q={query}",
+      "method": "GET",
+      "link_selector": "a[href^='http']:not([href*='brave.com'])",
+      "exclude_domain_in_href": "brave.com",
+      "priority": 2
+    },
+    {
+      "name": "Startpage",
+      "url_template": "https://www.startpage.com/sp/search?query={query}&cat=web",
+      "method": "GET",
+      "link_selector": "a[href^='http']:not([href*='startpage.com'])",
+      "exclude_domain_in_href": "startpage.com",
+      "priority": 3
+    },
+    {
+      "name": "Google",
+      "url_template": "https://www.google.com/search?q={query}&num=20&hl=en",
+      "method": "GET",
+      "link_selector": "div.g a[href]",
+      "exclude_domain_in_href": "google.com",
+      "priority": 4
+    }
+  ],
+  "banned_domains": [
+    "pinterest.com", "instagram.com", "tiktok.com",
+    "facebook.com", "twitter.com", "x.com",
+    "amazon.com", "ebay.com", "aliexpress.com",
+    "youtube.com", "youtu.be", "vimeo.com",
+    "khanacademy.org"
+  ],
+  "priority_sources": [
+    "orionsarm.com",
+    "worldanvil.com",
+    "projectperditus.com",
+    "spec-evo.fandom.com",
+    "speculativeevolution.fandom.com",
+    "tvtropes.org",
+    "mythcreants.com",
+    "worldbuildingschool.com",
+    "projectrho.com",
+    "fandom.com",
+    "wikipedia.org",
+    "reddit.com",
+    "stackexchange.com",
+    "scientificamerican.com",
+    "space.com",
+    "universetoday.com",
+    "astrobio.net"
+  ]
+}

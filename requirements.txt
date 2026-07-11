@@ -1,0 +1,15 @@
+# Repo 1 (visual_first_v2) — runtime dependencies
+# Pinned to major versions known-good with the T0-T5 harvester pipeline.
+
+beautifulsoup4>=4.12,<5
+lxml>=5.0,<6
+httpx>=0.27,<1
+pydantic>=2.6,<3
+pymongo>=4.6,<5
+scikit-learn>=1.4,<2
+google-generativeai>=0.5,<1
+playwright>=1.44,<2      # tier3_browser — Chromium headless
+curl_cffi>=0.7,<1        # tier4_stealth_tls — TLS fingerprint impersonation
+
+# Test tooling
+pytest>=8.0,<9
