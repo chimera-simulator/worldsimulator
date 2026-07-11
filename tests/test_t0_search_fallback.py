@@ -28,13 +28,13 @@ class TestFetchWithFallback(unittest.IsolatedAsyncioTestCase):
         _fetch_with_fallback phải trả về kết quả của engine 2."""
         sorted_engines = [_engine("engine1", 1), _engine("engine2", 2)]
 
-        async def fake_fetch(client, engine, query, blackbook):
+        async def fake_fetch(engine, query, blackbook, budget=None):
             if engine["name"] == "engine1":
                 return []
             return ["http://example.com/x"]
 
         with patch.object(t0_search, "_fetch_search_results", side_effect=fake_fetch) as mocked:
-            result = await _fetch_with_fallback(None, sorted_engines, "query", {})
+            result = await _fetch_with_fallback(sorted_engines, "query", {})
 
         self.assertEqual(result, ["http://example.com/x"])
         self.assertEqual(mocked.call_count, 2)
@@ -50,7 +50,7 @@ class TestFetchWithFallback(unittest.IsolatedAsyncioTestCase):
         fake_fetch = AsyncMock(return_value=[])
 
         with patch.object(t0_search, "_fetch_search_results", fake_fetch):
-            result = await _fetch_with_fallback(None, sorted_engines, "query", {})
+            result = await _fetch_with_fallback(sorted_engines, "query", {})
 
         self.assertEqual(result, [])
         self.assertEqual(fake_fetch.call_count, MAX_FALLBACK_ENGINES)
@@ -63,7 +63,7 @@ class TestFetchWithFallback(unittest.IsolatedAsyncioTestCase):
         fake_fetch = AsyncMock(return_value=["http://example.com/ok"])
 
         with patch.object(t0_search, "_fetch_search_results", fake_fetch):
-            result = await _fetch_with_fallback(None, sorted_engines, "query", {})
+            result = await _fetch_with_fallback(sorted_engines, "query", {})
 
         self.assertEqual(result, ["http://example.com/ok"])
         self.assertEqual(fake_fetch.call_count, 1)

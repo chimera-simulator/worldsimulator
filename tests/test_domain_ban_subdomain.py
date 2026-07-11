@@ -13,7 +13,12 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from domain_ban import is_domain_or_subdomain_in, is_academic_domain
+from domain_ban import (
+    is_domain_or_subdomain_in,
+    is_academic_domain,
+    force_unban_all,
+    reset_test_domains,
+)
 
 
 class TestIsDomainOrSubdomainIn(unittest.TestCase):
@@ -58,6 +63,81 @@ class TestIsAcademicDomainSubdomain(unittest.TestCase):
 
     def test_non_academic_domain_stays_false(self):
         self.assertFalse(is_academic_domain("artstation.com"))
+
+
+class TestForceUnbanAll(unittest.TestCase):
+    def test_unbans_all_banned_domains(self):
+        blackbook = {
+            "bad-a.com": {"status": "banned", "failures": 5, "banned_until": "2099-01-01T00:00:00+00:00"},
+            "bad-b.com": {"status": "banned", "failures": 3, "banned_until": "2099-01-01T00:00:00+00:00"},
+            "good.com": {"status": "active", "failures": 0},
+        }
+        count = force_unban_all(blackbook)
+        self.assertEqual(count, 2)
+        self.assertEqual(blackbook["bad-a.com"]["status"], "active")
+        self.assertEqual(blackbook["bad-a.com"]["failures"], 0)
+        self.assertNotIn("banned_until", blackbook["bad-a.com"])
+        self.assertEqual(blackbook["bad-b.com"]["status"], "active")
+        # domain vốn đã active không bị đụng vào
+        self.assertEqual(blackbook["good.com"]["status"], "active")
+
+    def test_keeps_round_robin_and_adapter_label(self):
+        blackbook = {
+            "bad.com": {
+                "status": "banned",
+                "failures": 3,
+                "banned_until": "2099-01-01T00:00:00+00:00",
+                "skill": "tier2_reader",
+                "adapter_label_valid_until": "2099-01-01T00:00:00+00:00",
+                "round_robin_cursor": 7,
+            },
+        }
+        force_unban_all(blackbook)
+        # skill/adapter_label/round_robin_cursor phải được GIỮ NGUYÊN
+        self.assertEqual(blackbook["bad.com"]["skill"], "tier2_reader")
+        self.assertEqual(blackbook["bad.com"]["adapter_label_valid_until"], "2099-01-01T00:00:00+00:00")
+        self.assertEqual(blackbook["bad.com"]["round_robin_cursor"], 7)
+
+    def test_empty_blackbook_returns_zero(self):
+        self.assertEqual(force_unban_all({}), 0)
+
+    def test_no_banned_domains_returns_zero(self):
+        blackbook = {"good.com": {"status": "active", "failures": 0}}
+        self.assertEqual(force_unban_all(blackbook), 0)
+
+
+class TestResetTestDomains(unittest.TestCase):
+    def test_resets_only_listed_domains(self):
+        blackbook = {
+            "target.com": {
+                "status": "banned", "failures": 3,
+                "banned_until": "2099-01-01T00:00:00+00:00",
+                "skill": "tier1_http",
+                "adapter_label_valid_until": "2099-01-01T00:00:00+00:00",
+            },
+            "untouched.com": {
+                "status": "banned", "failures": 3,
+                "banned_until": "2099-01-01T00:00:00+00:00",
+            },
+        }
+        count = reset_test_domains(blackbook, ["target.com"])
+        self.assertEqual(count, 1)
+        self.assertEqual(blackbook["target.com"]["status"], "active")
+        self.assertEqual(blackbook["target.com"]["failures"], 0)
+        self.assertNotIn("banned_until", blackbook["target.com"])
+        self.assertNotIn("skill", blackbook["target.com"])
+        self.assertNotIn("adapter_label_valid_until", blackbook["target.com"])
+        # domain không nằm trong danh sách phải giữ nguyên trạng thái banned
+        self.assertEqual(blackbook["untouched.com"]["status"], "banned")
+
+    def test_nonexistent_domain_is_skipped(self):
+        blackbook = {"exists.com": {"status": "active", "failures": 0}}
+        count = reset_test_domains(blackbook, ["does-not-exist.com"])
+        self.assertEqual(count, 0)
+
+    def test_empty_domain_list_returns_zero(self):
+        blackbook = {"exists.com": {"status": "banned", "failures": 3}}
+        self.assertEqual(reset_test_domains(blackbook, []), 0)
 
 
 if __name__ == "__main__":

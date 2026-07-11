@@ -1,5 +1,6 @@
 """Unit test cho core.budget_manager — không cần MongoDB, không cần Gemini."""
 import threading
+import time
 import unittest
 
 from core.budget_manager import BudgetManager
@@ -60,6 +61,66 @@ class TestBudgetManager(unittest.TestCase):
             t.join()
 
         self.assertEqual(success_count[0], 100)
+
+
+class TestTimeBudget(unittest.TestCase):
+    """[CODER 2 — Budget Theo Thời Gian, Vấn đề #2]"""
+
+    def test_default_max_seconds(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000)
+        self.assertEqual(b.max_seconds, BudgetManager.DEFAULT_MAX_SECONDS)
+
+    def test_max_seconds_override(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=99)
+        self.assertEqual(b.max_seconds, 99)
+
+    def test_max_seconds_zero_is_respected(self):
+        # "is not None" pattern -> 0 phải được tôn trọng, không rơi về default.
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=0)
+        self.assertEqual(b.max_seconds, 0)
+        self.assertTrue(b.is_time_budget_exhausted())
+
+    def test_env_var_override(self):
+        import os
+        os.environ["BUDGET_MAX_SECONDS"] = "1234"
+        try:
+            b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000)
+            self.assertEqual(b.max_seconds, 1234)
+        finally:
+            del os.environ["BUDGET_MAX_SECONDS"]
+
+    def test_is_time_budget_exhausted_false_when_fresh(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=60)
+        self.assertFalse(b.is_time_budget_exhausted())
+
+    def test_is_time_budget_exhausted_true_after_elapsed(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=0.05)
+        time.sleep(0.1)
+        self.assertTrue(b.is_time_budget_exhausted())
+
+    def test_seconds_remaining_positive_when_fresh(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=60)
+        remaining = b.seconds_remaining()
+        self.assertGreater(remaining, 0)
+        self.assertLessEqual(remaining, 60)
+
+    def test_seconds_remaining_negative_when_exhausted(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=0.05)
+        time.sleep(0.1)
+        self.assertLess(b.seconds_remaining(), 0)
+
+    def test_snapshot_includes_time_budget_fields(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=60)
+        snap = b.snapshot()
+        self.assertEqual(snap.max_seconds, 60)
+        self.assertGreater(snap.seconds_remaining, 0)
+
+    def test_snapshot_to_dict_includes_time_budget_keys(self):
+        b = BudgetManager(max_urls=10, max_gemini_calls=10, max_tokens=1000, max_seconds=60)
+        d = b.snapshot().to_dict()
+        self.assertIn("max_seconds", d)
+        self.assertIn("seconds_remaining", d)
+        self.assertEqual(d["max_seconds"], 60)
 
 
 class TestPipelineLogger(unittest.TestCase):
