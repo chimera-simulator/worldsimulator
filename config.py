@@ -278,6 +278,21 @@ MONGODB_URI: str = os.getenv("MONGODB_URI", "")
 MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "world_simulator")
 
 # =============================================================================
+# [MỚI — FIX tách bạch quota T0/T2] Trước đây T0 (discovery: đếm số link
+# search-engine trả về) và T2 (scrape: đếm số link THỰC SỰ fetch) dùng
+# CHUNG một `BudgetManager.consume_url()` -> T0 chạy trước, luôn trừ hết
+# quota trong lúc discovery -> T2 luôn nhận 0 URL, bị tưởng nhầm là do
+# Gate 2 loại hết.
+#
+# T0 GIỮ NGUYÊN bộ đếm cũ (`budget.consume_url()` qua object BudgetManager
+# được truyền vào run_search_pipeline — KHÔNG đổi gì ở t0_search.py).
+#
+# T2 giờ có bộ đếm RIÊNG, độc lập hoàn toàn — cấu hình qua biến env MỚI
+# này, KHÔNG tái dùng biến/attribute nào của BudgetManager phía T0.
+# =============================================================================
+T2_SCRAPE_MAX_URLS: int = int(os.getenv("T2_SCRAPE_MAX_URLS", "150"))
+
+# =============================================================================
 # QUALITY SCORER — dùng bởi core/quality_scorer.py (Gate 5, run_gate_5()).
 # Tổng 4 trọng số PHẢI = 100 — có unit test riêng assert việc này
 # (tests/test_quality_scorer.py::test_weights_sum_to_100).

@@ -336,8 +336,24 @@ async def run_pipeline_once(cfg=None) -> dict:
                   message=f"T2 hoàn thành — {len(scraped_docs)} document qua Gate 2.")
 
         if not scraped_docs:
+            # [FIX] Trước đây message này giả định luôn là "Gate 2 loại hết",
+            # nhưng scraped_docs rỗng có thể do nhiều nguyên nhân khác nhau ở
+            # T2: (a) quota scrape RIÊNG của T2 (config.T2_SCRAPE_MAX_URLS)
+            # hết ngay từ đầu, (b) toàn bộ URL fetch lỗi qua adaptive_router
+            # (domain ban, network fail...), hoặc (c) Gate 2 thực sự loại hết
+            # vì visual-keyword density thấp. Không phân biệt được chính xác
+            # nguyên nhân nào ở tầng main.py (run_scrape_pipeline không trả
+            # breakdown), nên message giờ liệt kê đủ khả năng thay vì khẳng
+            # định nhầm là "Gate 2" — chi tiết hơn (quota T2 dùng bao nhiêu)
+            # xem log WARNING riêng của t2_scrape.py ở cùng run_id.
             obs.event(step="T2_SCRAPE", agent="t2_scrape", status="WARNING",
-                      message="T2 không còn document nào sau Gate 2 — dừng chu kỳ.")
+                      message=(
+                          "T2 không trả về document nào — có thể do hết quota "
+                          "scrape riêng của T2, toàn bộ URL fetch lỗi, hoặc bị "
+                          "Gate 2 loại hết vì visual-keyword density thấp. "
+                          "Xem log chi tiết của t2_scrape.py (cùng run_id) để "
+                          "xác định nguyên nhân cụ thể — dừng chu kỳ."
+                      ))
             return {"new": 0, "merged": 0, "rejected": 0, "errors": ["t2_empty"]}
 
         # [CODER 2] Time-budget check sau T2

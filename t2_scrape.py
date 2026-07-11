@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from config import VISUAL_KEYWORD_FILTER, VISUAL_KEYWORD_DENSITY_THRESHOLD
+from config import VISUAL_KEYWORD_FILTER, VISUAL_KEYWORD_DENSITY_THRESHOLD, T2_SCRAPE_MAX_URLS
 from domain_ban import is_banned, record_failure, record_success
 import stealth
 import core.adaptive_router  # [FIX] import module (không phải from-import) để
@@ -107,6 +107,43 @@ def compute_visual_keyword_density(text: str) -> float:
     return hit_count / total_words
 
 
+class _T2UrlCounter:
+    """[MỚI — FIX tách bạch quota T0/T2]
+
+    Bộ đếm quota RIÊNG của T2, KHÔNG dùng chung `BudgetManager.consume_url()`
+    với T0 nữa. Trước đây T0 (search_field -> mỗi kết quả search) và T2
+    (mỗi URL sắp fetch) cùng gọi `budget.consume_url()` trên MỘT object
+    `BudgetManager` -> T0 chạy trước, luôn tìm đủ 150 kết quả nên tự trừ
+    hết quota chung ngay trong lúc discovery -> khi T2 chạy tới,
+    `consume_url()` luôn trả `False` ngay từ URL đầu tiên -> 0 document,
+    và log lại báo nhầm là do Gate 2 loại hết.
+
+    `_T2UrlCounter` không đọc/ghi bất kỳ attribute nào của `BudgetManager`
+    (không phải `urls_used`, không phải `urls_max`) — trần mặc định lấy từ
+    `config.T2_SCRAPE_MAX_URLS`, một biến MỚI tách biệt hoàn toàn khỏi biến
+    quota mà T0 đang dùng.
+    """
+
+    def __init__(self, max_urls: int):
+        self._max_urls = max_urls
+        self._used = 0
+
+    def consume(self) -> bool:
+        """Trừ 1 quota. Trả False nếu đã hết (không mutate thêm)."""
+        if self._used >= self._max_urls:
+            return False
+        self._used += 1
+        return True
+
+    @property
+    def used(self) -> int:
+        return self._used
+
+    @property
+    def max_urls(self) -> int:
+        return self._max_urls
+
+
 def _domain_of(url: str) -> str:
     try:
         return urlparse(url).netloc.lower().replace("www.", "")
@@ -176,31 +213,59 @@ async def scrape_url(
 async def run_scrape_pipeline(
     items: List[dict],
     blackbook: dict,
-    budget=None,   # BudgetManager | None
+    budget=None,   # BudgetManager | None — [FIX] KHÔNG còn dùng để lọc quota
+                   # URL của T2 nữa (xem _T2UrlCounter). Tham số này được GIỮ
+                   # LẠI và vẫn truyền xuống scrape_url()/fetch_with_router()
+                   # nguyên trạng, phòng trường hợp adaptive_router dùng
+                   # `budget` cho mục đích khác ngoài quota URL (vd rate-limit
+                   # theo domain/tier) — chỉ riêng bước lọc quota URL Ở ĐÂY là
+                   # đã tách khỏi `budget`, không consume_url() từ nó nữa.
     obs=None,      # PipelineLogger | None
+    t2_url_limit: Optional[int] = None,  # [MỚI] Ghi đè trần scrape riêng của
+                                          # T2 (vd để test). None -> dùng
+                                          # config.T2_SCRAPE_MAX_URLS.
 ) -> List[ScrapedDocument]:
     """Scrape song song (asyncio) toàn bộ URL đã qua Gate 1.
 
-    [MỚI] `budget` (BudgetManager | None): vì `asyncio.gather()` chạy TẤT
-    CẢ task cùng lúc, không thể "dừng giữa chừng" như vòng `for` tuần tự.
-    Phải lọc `items` xuống danh sách được phép TRƯỚC KHI tạo `tasks`.
+    [FIX — tách bạch quota T0/T2] TRƯỚC ĐÂY hàm này gọi `budget.consume_url()`
+    — CÙNG một object `BudgetManager` mà t0_search.py cũng gọi để đếm "số
+    link tìm thấy" (discovery, xem t0_search.py::run_search_pipeline). Vì T0
+    chạy trước và luôn tìm đủ 150 kết quả, nó tự trừ hết quota CHUNG ngay
+    trong lúc discovery -> khi T2 chạy tới, `budget.consume_url()` luôn trả
+    `False` ngay từ URL đầu tiên -> `allowed_items = []` -> 0 document, và
+    log lúc đó lại báo nhầm là do Gate 2 loại hết, trong khi thực ra T2 chết
+    TRƯỚC Gate 2 vì hết quota chứ không phải bị Gate 2 reject.
+
+    Từ bản fix này, T2 dùng bộ đếm RIÊNG (`_T2UrlCounter`), độc lập hoàn
+    toàn với `budget`/T0 — không đọc, không ghi bất kỳ state nào của
+    `BudgetManager`. Trần mặc định lấy từ `config.T2_SCRAPE_MAX_URLS`
+    (biến MỚI, tách khỏi biến quota mà T0 dùng).
+
+    [MỚI] `asyncio.gather()` chạy TẤT CẢ task cùng lúc, không thể "dừng
+    giữa chừng" như vòng `for` tuần tự -> vẫn phải lọc `items` xuống danh
+    sách được phép TRƯỚC KHI tạo `tasks`, chỉ khác là lọc theo
+    `_T2UrlCounter` thay vì `budget`.
     """
     documents: List[ScrapedDocument] = []
 
-    # [MỚI] Lọc items xuống mức budget cho phép TRƯỚC khi build task —
-    # vì asyncio.gather() chạy song song, không thể chặn giữa chừng.
-    allowed_items = items
-    if budget is not None:
-        allowed_items = []
-        for item in items:
-            if not budget.consume_url():
-                if obs:
-                    obs.budget_exhausted(resource="url", agent="t2_scrape")
-                logger.warning(
-                    f"⚠️ [T2] URL budget exhausted — chỉ scrape {len(allowed_items)}/{len(items)} URL."
-                )
-                break
-            allowed_items.append(item)
+    max_urls = t2_url_limit if t2_url_limit is not None else T2_SCRAPE_MAX_URLS
+    t2_counter = _T2UrlCounter(max_urls)
+
+    # [FIX] Lọc items xuống mức quota RIÊNG của T2 (không đụng `budget`) —
+    # TRƯỚC khi build task, vì asyncio.gather() chạy song song, không thể
+    # chặn giữa chừng.
+    allowed_items: List[dict] = []
+    for item in items:
+        if not t2_counter.consume():
+            if obs:
+                obs.budget_exhausted(resource="url", agent="t2_scrape")
+            logger.warning(
+                f"⚠️ [T2] Quota scrape RIÊNG của T2 đã hết "
+                f"({t2_counter.used}/{t2_counter.max_urls}) — "
+                f"chỉ scrape {len(allowed_items)}/{len(items)} URL."
+            )
+            break
+        allowed_items.append(item)
 
     tasks = [scrape_url(None, item, blackbook, budget=budget, obs=obs) for item in allowed_items]
     results = await asyncio.gather(*tasks, return_exceptions=False)
@@ -209,7 +274,10 @@ async def run_scrape_pipeline(
         if doc is not None:
             documents.append(doc)
 
-    logger.info(f"✅ [T2] Scrape hoàn thành — {len(documents)}/{len(allowed_items)} document qua Gate 2.")
+    logger.info(
+        f"✅ [T2] Scrape hoàn thành — {len(documents)}/{len(allowed_items)} "
+        f"document qua Gate 2 (quota T2: {t2_counter.used}/{t2_counter.max_urls})."
+    )
     return documents
 
 
