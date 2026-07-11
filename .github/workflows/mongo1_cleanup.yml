@@ -1,0 +1,181 @@
+name: Mongo1 Cleanup (dọn ổ cứng — chỉ giữ dữ liệu World Simulator)
+
+# Workflow NGUY HIỂM (xoá dữ liệu) — CHỈ chạy thủ công, KHÔNG có cron/schedule.
+# Mục đích: Mongo1 hiện đang chứa cả dữ liệu của các dự án/nguồn khác lẫn với
+# dữ liệu "sạch" của World Simulator (fiction_knowledge, visual_blueprint_collection,
+# world_rule_library, lib_entities — xem config.py::MONGO_TARGET_COLLECTIONS).
+# Workflow này AUDIT trước, rồi mới xoá phần "rác" không thuộc whitelist.
+#
+# 2 lớp an toàn bắt buộc trước khi xoá thật:
+#   1) input `dry_run` mặc định "true" — chỉ liệt kê, KHÔNG xoá gì cả.
+#   2) input `confirm` phải gõ đúng chữ "XOA-MONGO1" thì bước xoá mới chạy,
+#      kể cả khi dry_run="false".
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true = chỉ liệt kê (audit), KHÔNG xoá. Đặt 'false' để xoá thật."
+        required: true
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+      scope:
+        description: >
+          collections_only = chỉ dọn bên trong DB world_simulator (xoá các
+          collection KHÔNG nằm trong whitelist MONGO_TARGET_COLLECTIONS).
+          full_instance = dọn toàn bộ Mongo1 (xoá luôn các DATABASE khác,
+          chỉ giữ lại DB world_simulator + admin/local/config hệ thống).
+        required: true
+        default: "collections_only"
+        type: choice
+        options: ["collections_only", "full_instance"]
+      confirm:
+        description: "Gõ đúng XOA-MONGO1 để cho phép bước xoá thật chạy"
+        required: true
+        default: ""
+
+concurrency:
+  group: mongo1-cleanup
+  cancel-in-progress: false
+
+jobs:
+  audit-and-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pymongo
+        run: pip install pymongo
+
+      # Bước 1 — LUÔN chạy: liệt kê database/collection hiện có trên Mongo1
+      # và ghi ra report.json làm artifact audit, bất kể dry_run là gì.
+      - name: Audit Mongo1 (liệt kê database/collection hiện có)
+        id: audit
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'world_simulator' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pymongo import MongoClient
+
+          uri = os.environ["MONGODB_URI"]
+          target_db_name = os.environ["MONGODB_DB_NAME"]
+
+          # Whitelist collection "sạch" của World Simulator — đồng bộ với
+          # config.py::MONGO_TARGET_COLLECTIONS. Sửa ở ĐÂY nếu whitelist đổi.
+          KEEP_COLLECTIONS = {
+              "fiction_knowledge",
+              "visual_blueprint_collection",
+              "world_rule_library",
+              "lib_entities",
+          }
+          # Database hệ thống của MongoDB — KHÔNG bao giờ động vào.
+          SYSTEM_DBS = {"admin", "local", "config"}
+
+          client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+          client.admin.command("ping")
+
+          report = {"target_db": target_db_name, "databases": {}}
+          for db_name in client.list_database_names():
+              if db_name in SYSTEM_DBS:
+                  continue
+              db = client[db_name]
+              colls = {}
+              for coll_name in db.list_collection_names():
+                  colls[coll_name] = db[coll_name].estimated_document_count()
+              report["databases"][db_name] = colls
+
+          with open("mongo1_audit_report.json", "w", encoding="utf-8") as f:
+              json.dump(report, f, ensure_ascii=False, indent=2)
+
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          client.close()
+          PY
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo1-audit-report-${{ github.run_id }}
+          path: mongo1_audit_report.json
+          retention-days: 30
+
+      # Bước 2 — CHỈ xoá thật nếu dry_run=false VÀ confirm đúng chuỗi yêu cầu.
+      - name: Xoá dữ liệu KHÔNG thuộc whitelist (thực thi thật)
+        if: ${{ github.event.inputs.dry_run == 'false' && github.event.inputs.confirm == 'XOA-MONGO1' }}
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'world_simulator' }}
+          CLEAN_SCOPE: ${{ github.event.inputs.scope }}
+        run: |
+          python - <<'PY'
+          import os
+          from pymongo import MongoClient
+
+          uri = os.environ["MONGODB_URI"]
+          target_db_name = os.environ["MONGODB_DB_NAME"]
+          scope = os.environ["CLEAN_SCOPE"]
+
+          KEEP_COLLECTIONS = {
+              "fiction_knowledge",
+              "visual_blueprint_collection",
+              "world_rule_library",
+              "lib_entities",
+          }
+          SYSTEM_DBS = {"admin", "local", "config"}
+
+          client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+          client.admin.command("ping")
+
+          # 1) Luôn dọn bên trong DB world_simulator: xoá collection lạ.
+          target_db = client[target_db_name]
+          for coll_name in target_db.list_collection_names():
+              if coll_name not in KEEP_COLLECTIONS:
+                  print(f"[DROP collection] {target_db_name}.{coll_name}")
+                  target_db.drop_collection(coll_name)
+
+          # 2) Nếu scope=full_instance: xoá luôn các DATABASE khác trên Mongo1
+          #    (dữ liệu của các dự án/nguồn không liên quan World Simulator).
+          if scope == "full_instance":
+              for db_name in client.list_database_names():
+                  if db_name in SYSTEM_DBS or db_name == target_db_name:
+                      continue
+                  print(f"[DROP database] {db_name}")
+                  client.drop_database(db_name)
+
+          client.close()
+          print("✅ Đã dọn xong Mongo1 theo whitelist.")
+          PY
+
+      - name: Bỏ qua bước xoá (chưa đủ điều kiện an toàn)
+        if: ${{ !(github.event.inputs.dry_run == 'false' && github.event.inputs.confirm == 'XOA-MONGO1') }}
+        run: |
+          echo "⏭️  Bỏ qua bước xoá thật."
+          echo "   - dry_run hiện tại: ${{ github.event.inputs.dry_run }}"
+          echo "   - confirm hiện tại: '${{ github.event.inputs.confirm }}' (phải đúng 'XOA-MONGO1')"
+          echo "   Xem artifact mongo1-audit-report để biết Mongo1 đang chứa gì trước khi xoá thật."
+
+      # Bước 3 — Sau khi dọn xong, đảm bảo lại các index cần thiết cho
+      # collection sạch (đồng bộ mongo_shared.py::ensure_indexes).
+      - name: Recreate indexes cho collection sạch
+        if: ${{ github.event.inputs.dry_run == 'false' && github.event.inputs.confirm == 'XOA-MONGO1' }}
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'world_simulator' }}
+        run: |
+          python -c "
+          from mongo_shared import get_shared_db, close_shared_client
+          db = get_shared_db()
+          if db is not None:
+              print('✅ Indexes đã được đảm bảo lại cho collection sạch.')
+          close_shared_client()
+          "

@@ -1,0 +1,68 @@
+name: Repo1 CI (Lint & Unit Tests)
+
+# Chạy trên mọi push/PR — KHÔNG chạm MongoDB thật,
+# KHÔNG gọi Gemini API thật. Mục tiêu duy nhất: bắt lỗi cú pháp/import và
+# đảm bảo bộ unit test (rule_library, t3_normalize Check G) luôn xanh trước
+# khi merge, theo nguyên tắc "Observability > Complexity" (mục 105 SPEC).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Syntax check (compileall)
+        run: python -m compileall -q .
+
+      - name: Lint (flake8 — chỉ fail trên lỗi nghiêm trọng E9/F63/F7/F82)
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-line-length=120 --statistics
+
+      - name: Import smoke test (đảm bảo mọi module core import sạch)
+        run: |
+          python -c "
+          import importlib
+          mods = ['config','t0_search','t1_classify','t2_scrape','summarizer',
+                   't3_normalize','t4_deduplicate','t5_upload','mongo_shared',
+                   'rule_library','domain_ban','stealth','manage_rules',
+                   'builders.visual_prompt_builder','schemas.master_schema_2_0',
+                   'schemas.visual_blueprint_3_0',
+                   'core.adaptive_router','core.adapters.tier1_http','core.adapters.tier2_reader',
+                   'core.adapters.tier3_browser','core.adapters.tier4_stealth_tls','core.anti_detect']
+          for m in mods:
+              importlib.import_module(m)
+              print('OK:', m)
+          "
+
+      - name: Run unit tests (rule_library + t3_normalize Check G)
+        run: |
+          python -m unittest tests.test_rule_library -v
+          python -m unittest tests.test_t3_normalize_check_g -v
+
+      - name: Validate search_engines.json
+        run: python -c "import json; json.load(open('search_engines.json')); print('search_engines.json OK')"

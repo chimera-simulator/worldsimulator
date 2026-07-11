@@ -1,0 +1,103 @@
+name: Repo1 Harvest Cycle (T0 -> T5)
+
+# Chạy 1 chu kỳ đầy đủ của Design Pattern Harvester (main.py:run_pipeline_once).
+# KHÔNG chạy nền liên tục (đúng nguyên tắc mục 104 SPEC — Free Tier Strategy):
+# chỉ trigger thủ công (workflow_dispatch) hoặc theo lịch cron thưa để tiết
+# kiệm phút chạy của GitHub Actions Free Tier (2000 phút/tháng).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Chạy dry-run (không upload MongoDB, chỉ log)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+  schedule:
+    # 06:00 UTC mỗi ngày (~13:00 giờ VN) — 1 chu kỳ/ngày, điều chỉnh theo nhu cầu.
+    - cron: "0 6 * * *"
+
+concurrency:
+  # Không cho 2 chu kỳ chạy chồng lên nhau (tránh race trên blackbook.json).
+  group: repo1-harvest
+  cancel-in-progress: false
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browser (Chromium only)
+        run: python -m playwright install --with-deps chromium
+
+      # blackbook.json giữ round-robin cursor + dedup keyword giữa các lần
+      # chạy (main.py là nơi DUY NHẤT load/save — xem docstring main.py).
+      # Runner GitHub Actions ephemeral nên phải cache file này qua actions/cache,
+      # khóa cache cố định + luôn restore-and-resave (không dùng hash key).
+      # [RESET 2026-07-10] Đổi v1 -> v2: blackbook.json cũ (cache
+      # repo1-blackbook-v1) đang chứa trạng thái "banned" GIẢ cho
+      # DuckDuckGo/Brave/Startpage do bug get_stealth_headers() ở
+      # t0_search.py (đã fix). Bump key để lần chạy này CACHE-MISS có
+      # chủ đích, main.py tự tạo blackbook rỗng (xem load_blackbook() —
+      # không thấy file -> trả schema rỗng mặc định), không cần xoá cache
+      # cũ qua API. Có thể đổi lại "repo1-blackbook-v1" sau khi cache v2
+      # đã chạy ổn định vài lần, hoặc giữ nguyên v2 vĩnh viễn cũng được.
+      - name: Restore blackbook.json (round-robin/dedup state)
+        uses: actions/cache/restore@v4
+        with:
+          path: blackbook.json
+          key: repo1-blackbook-v2
+
+      - name: Run harvest cycle (T0 -> T5)
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ vars.MONGODB_DB_NAME || 'world_simulator' }}
+          GEMINI_MODEL_NO_1: ${{ secrets.GEMINI_KEY_1 }}
+          GEMINI_MODEL_NO_2: ${{ secrets.GEMINI_KEY_2 }}
+          GEMINI_MODEL_NO_3: ${{ secrets.GEMINI_KEY_3 }}
+          GEMINI_MODEL_NO_4: ${{ secrets.GEMINI_KEY_4 }}
+          GEMINI_MODEL_NO_5: ${{ secrets.GEMINI_KEY_5 }}
+          GEMINI_MODEL_NO_6: ${{ secrets.GEMINI_KEY_6 }}
+          GEMINI_MODEL_NO_7: ${{ secrets.GEMINI_KEY_7 }}
+          GEMINI_MODEL_NAME: ${{ vars.GEMINI_MODEL_NAME || 'gemini-2.5-flash' }}
+
+          # [MỚI] Budget controls — có thể override qua GitHub Variables
+          BUDGET_MAX_URLS:         ${{ vars.BUDGET_MAX_URLS || '150' }}
+          BUDGET_MAX_GEMINI_CALLS: ${{ vars.BUDGET_MAX_GEMINI_CALLS || '300' }}
+          BUDGET_MAX_TOKENS:       ${{ vars.BUDGET_MAX_TOKENS || '300000' }}
+          BUDGET_MAX_BROWSER_CALLS: ${{ vars.BUDGET_MAX_BROWSER_CALLS || '15' }}
+        run: python main.py
+
+      # Luôn lưu lại blackbook.json mới nhất, kể cả khi bước trên fail giữa
+      # chừng (main.py ghi trong khối finally) — dùng if: always().
+      - name: Save blackbook.json (round-robin/dedup state)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: blackbook.json
+          key: repo1-blackbook-v2
+
+      - name: Upload run log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo1-harvest-log-${{ github.run_id }}
+          path: blackbook.json
+          retention-days: 14
