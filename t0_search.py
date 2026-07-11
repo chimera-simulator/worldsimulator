@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+import config
 from config import get_form_fields, MASTER_SCHEMA_2_0
 from domain_ban import (
     is_banned,
@@ -27,7 +28,9 @@ from domain_ban import (
     record_failure,
     record_success,
 )
-import stealth
+# [CODER 3] Không còn import `stealth` trực tiếp ở đây — mỗi adapter
+# (tier1_http, tier4_stealth_tls) tự quản lý stealth headers/TLS fingerprint
+# riêng bên trong core/adapters/*.
 
 logger = logging.getLogger(__name__)
 
@@ -53,17 +56,40 @@ class SearchResultItem(TypedDict):
                                  # vì đang ở full-scan mode)
 
 
-def generate_queries_for_field(field_name: str) -> List[str]:
+def generate_queries_for_field(
+    field_name: str,
+    blueprint_context: Optional[str] = None,
+) -> List[str]:
     """Sinh đúng 5 query variant cho 1 field (lấy phần cuối của dot-path
     làm từ khóa chính, ví dụ 'form_1_planet_foundation.planet_identity.terrain_patterns'
-    -> 'terrain patterns')."""
+    -> 'terrain patterns').
+
+    [CODER 3 — Scope Fix] Thêm anchor worldbuilding vào mỗi query để
+    ràng buộc search engine trả về kết quả thuộc phạm vi thế giới giả tưởng,
+    không phải kết quả chung chung (VD: 'terrain patterns geology' thay vì
+    chỉ 'terrain patterns').
+
+    Args:
+        blueprint_context: Tên/loại blueprint đang build (VD: 'crystal planet',
+            'underwater civilization'). Nếu None, dùng anchor chung từ
+            WORLDBUILDING_ANCHOR_TERMS.
+    """
     keyword = field_name.split(".")[-1].replace("_", " ")
+
+    # [CODER 3] Chọn anchor: blueprint_context nếu có, ngược lại random từ list
+    if blueprint_context:
+        anchor = blueprint_context
+    else:
+        anchor = random.choice(
+            config.WORLDBUILDING_ANCHOR_TERMS[: config.WORLDBUILDING_ANCHOR_INJECT_COUNT * 3]
+        )
+
     return [
-        f"{keyword} concept art",
-        f"{keyword} design",
-        f"{keyword} description worldbuilding",
-        f"{keyword} reference sheet",
-        f"{keyword} variant types",
+        f"{keyword} {anchor} concept art",
+        f"{keyword} {anchor} design",
+        f"{keyword} worldbuilding description",
+        f"{keyword} {anchor} reference sheet",
+        f"{keyword} fictional variant types",
     ]
 
 
@@ -89,10 +115,23 @@ def _domain_of(url: str) -> str:
 
 
 async def _fetch_search_results(
-    client: httpx.AsyncClient, engine: dict, query: str, blackbook: dict
+    engine: dict,
+    query: str,
+    blackbook: dict,
+    budget=None,
 ) -> List[str]:
-    """Gọi 1 search engine, trả về list URL thô. Không raise — lỗi mạng chỉ
-    log và trả list rỗng (không được làm crash toàn bộ pipeline)."""
+    """Gọi 1 search engine với stealth tier tự động, trả về list URL thô.
+
+    [CODER 3] Nâng cấp từ plain httpx + header → thử tier theo thứ tự:
+      1. tier4_stealth_tls (curl_cffi, TLS fingerprint) — chống JA3 detection
+      2. tier1_http (httpx + stealth headers) — fallback nếu tier4 không khả dụng
+
+    Search engine KHÔNG dùng Playwright (tier3) — quá chậm cho pagination search,
+    và Jina Reader (tier2) không phù hợp cho trang search result.
+
+    Không raise — lỗi mạng chỉ log và trả list rỗng (không được làm crash
+    toàn bộ pipeline).
+    """
     url = engine["url_template"].format(query=httpx.QueryParams({"q": query}).get("q", query))
     domain = _domain_of(url)
 
@@ -100,18 +139,42 @@ async def _fetch_search_results(
         logger.info(f"⏭️  Bỏ qua engine '{engine.get('name')}' (domain đang bị ban tạm thời).")
         return []
 
+    html = None
+    used_tier = None
+
+    # [CODER 3] Tier 1: curl_cffi TLS impersonation (chống JA3 fingerprinting)
     try:
-        _, headers = stealth.get_stealth_headers()
-        resp = await client.get(url, headers=headers, timeout=15.0)
-        resp.raise_for_status()
+        from core.adapters import tier4_stealth_tls
+        html = await tier4_stealth_tls.fetch(url, obs=None)
+        if html:
+            used_tier = "tier4_stealth_tls"
+    except Exception as e:
+        logger.debug(f"[T0] tier4_stealth_tls thất bại cho '{domain}': {e}")
+
+    # [CODER 3] Tier 2 fallback: httpx + stealth headers (tier1 equivalent)
+    if not html:
+        try:
+            from core.adapters import tier1_http
+            html = await tier1_http.fetch(url, obs=None)
+            if html:
+                used_tier = "tier1_http"
+        except Exception as e:
+            logger.debug(f"[T0] tier1_http thất bại cho '{domain}': {e}")
+
+    if not html:
+        logger.warning(f"⚠️ [T0] Tất cả tier thất bại cho engine '{engine.get('name')}', query '{query}'")
         if domain:
-            record_success(blackbook, domain)
+            record_failure(blackbook, domain)
+        return []
 
-        # Trích href thô bằng parser nhẹ (BeautifulSoup ở t2, ở đây chỉ cần
-        # regex/text đơn giản để không phụ thuộc DOM parser tại t0).
-        from bs4 import BeautifulSoup  # import cục bộ để t0 không bắt buộc phụ thuộc nếu không dùng
+    logger.debug(f"[T0] Search '{engine.get('name')}' thành công via {used_tier}")
+    if domain:
+        record_success(blackbook, domain)
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+    # Parse HTML lấy links (giữ nguyên logic cũ)
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
         selector = engine.get("link_selector", "a[href^='http']")
         exclude = engine.get("exclude_domain_in_href", "")
         links = []
@@ -121,9 +184,7 @@ async def _fetch_search_results(
                 links.append(href)
         return links
     except Exception as e:
-        logger.warning(f"⚠️ Lỗi search engine '{engine.get('name')}' cho query '{query}': {e}")
-        if domain:
-            record_failure(blackbook, domain)
+        logger.warning(f"⚠️ [T0] Parse HTML lỗi cho '{engine.get('name')}': {e}")
         return []
 
 
@@ -131,10 +192,10 @@ MAX_FALLBACK_ENGINES = 3  # trần số engine thử/query, tránh đốt quota 
 
 
 async def _fetch_with_fallback(
-    client: httpx.AsyncClient,
     sorted_engines: List[dict],
     query: str,
     blackbook: dict,
+    budget=None,
 ) -> List[str]:
     """Thử lần lượt các engine theo thứ tự priority tăng dần (engine[0] =
     priority cao nhất). Dừng ngay khi một engine trả về kết quả không rỗng.
@@ -145,7 +206,7 @@ async def _fetch_with_fallback(
     """
     last_engine_name = None
     for engine in sorted_engines[:MAX_FALLBACK_ENGINES]:
-        urls = await _fetch_search_results(client, engine, query, blackbook)
+        urls = await _fetch_search_results(engine, query, blackbook, budget)
         if urls:
             if last_engine_name:
                 logger.info(
@@ -182,14 +243,16 @@ async def search_field(
 
     sorted_engines = sorted(engines, key=lambda e: e.get("priority", 99))
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        tasks = []
-        task_meta = []
-        for variant, query in zip(_QUERY_VARIANT_ORDER, queries):
-            tasks.append(_fetch_with_fallback(client, sorted_engines, query, blackbook))
-            task_meta.append(variant)
+    # [CODER 3] Không cần AsyncClient ở tầng này nữa — các adapter tự quản lý
+    # session/tier riêng (tier4_stealth_tls / tier1_http) bên trong
+    # _fetch_search_results().
+    tasks = []
+    task_meta = []
+    for variant, query in zip(_QUERY_VARIANT_ORDER, queries):
+        tasks.append(_fetch_with_fallback(sorted_engines, query, blackbook))
+        task_meta.append(variant)
 
-        raw_results = await asyncio.gather(*tasks, return_exceptions=False)
+    raw_results = await asyncio.gather(*tasks, return_exceptions=False)
 
     for variant, urls in zip(task_meta, raw_results):
         for url in urls[:max_results_per_query]:
