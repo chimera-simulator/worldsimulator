@@ -330,9 +330,10 @@ async def run_search_pipeline(
     (load_blackbook/save_blackbook), để tránh race giữa T0 và T2 khi mỗi
     bên tự đọc/ghi file riêng.
 
-    [MỚI] `budget` (BudgetManager | None): trừ quota URL cho mỗi kết quả
-    thêm vào `results`. Khi cạn, dừng thu thập ngay và trả về những gì đã
-    có (không raise, không crash pipeline).
+    `budget` (BudgetManager | None): KHÔNG còn được dùng tại T0 để consume_url().
+    Tham số giữ lại để tương thích ngược với signature (main.py truyền vào),
+    nhưng T0 không trừ bất kỳ budget nào — T2 là nơi duy nhất consume_url().
+    Giới hạn discovery dùng MAX_DISCOVERY_RESULTS_PER_RUN (config.py) thay thế.
 
     [MỚI — Progressive Gap Filling] `target_fields` (List[str] | None):
     nếu được truyền và không rỗng, CHỈ search các field trong danh sách
@@ -399,21 +400,24 @@ async def run_search_pipeline(
             logger.error(f"❌ [T0] Lỗi khi search field '{field}': {e}")
             continue
 
-        # [MỚI — BUG #2] Patch cờ field_already_filled: chỉ có ý nghĩa khi
-        # đang ở Gap-Aware Mode (target_fields không rỗng); ở Full-Scan Mode
-        # không có khái niệm "đã đầy" nên luôn để False.
+        # Patch cờ field_already_filled + append (1 vòng duy nhất).
+        # [FIX — BUDGET_DOUBLE_CHARGE] KHÔNG gọi budget.consume_url() tại T0.
+        # Discovery (parse link từ trang search) không phải hành động tốn tài
+        # nguyên mà max_urls bảo vệ — max_urls dành riêng cho T2 scrape thật.
+        # Giới hạn tổng URL T0 thu thập dùng MAX_DISCOVERY_RESULTS_PER_RUN
+        # (config.py) — hằng số độc lập, không liên quan BudgetManager.
         is_gap_field = bool(target_fields) and field in (target_fields or [])
         for item in field_results:
-            item["field_already_filled"] = (not is_gap_field) if target_fields else False
-
-        # [MỚI] Trừ quota URL cho từng kết quả của field này.
-        for item in field_results:
-            if budget is not None and not budget.consume_url():
-                if obs:
-                    obs.budget_exhausted(resource="url", agent="t0_search")
-                logger.warning("⚠️ [T0] URL budget exhausted — dừng thu thập.")
-                logger.info(f"✅ [T0] Hoàn thành sớm — {len(results)} URL / dừng giữa {len(all_fields)} field.")
+            if len(results) >= config.MAX_DISCOVERY_RESULTS_PER_RUN:
+                logger.warning(
+                    f"⚠️ [T0] Đạt trần discovery {config.MAX_DISCOVERY_RESULTS_PER_RUN} URL "
+                    f"— dừng thu thập sớm (không liên quan URL scrape budget)."
+                )
+                logger.info(
+                    f"✅ [T0] Hoàn thành sớm — {len(results)} URL / dừng giữa {len(all_fields)} field."
+                )
                 return results
+            item["field_already_filled"] = (not is_gap_field) if target_fields else False
             results.append(item)
 
         # Anti-ban: nghỉ ngẫu nhiên giữa các field, giữ convention delay hiện có.
