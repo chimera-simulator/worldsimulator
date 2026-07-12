@@ -110,7 +110,7 @@ jobs:
           BUDGET_MAX_URLS:         ${{ vars.BUDGET_MAX_URLS || '150' }}
           BUDGET_MAX_GEMINI_CALLS: ${{ vars.BUDGET_MAX_GEMINI_CALLS || '300' }}
           BUDGET_MAX_TOKENS:       ${{ vars.BUDGET_MAX_TOKENS || '300000' }}
-          BUDGET_MAX_BROWSER_CALLS: ${{ vars.BUDGET_MAX_BROWSER_CALLS || '15' }}
+          BUDGET_MAX_BROWSER_CALLS: ${{ vars.BUDGET_MAX_BROWSER_CALLS || '150' }}
           # [CODER 2 — Budget Theo Thời Gian] Graceful-stop time budget (giây).
           # 2700s = 45 phút, margin 10 phút trước timeout-minutes=55 ở trên.
           BUDGET_MAX_SECONDS: ${{ vars.BUDGET_MAX_SECONDS || '2700' }}
