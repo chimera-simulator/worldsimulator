@@ -31,11 +31,33 @@ from __future__ import annotations
 #         nếu có (không có ở đây nhưng cần chú ý khi mở rộng).
 # ---------------------------------------------------------------------------
 TARGET_FORM_FIELD_TO_LIBRARY_TYPE: list[tuple[str, str]] = [
+    # [MỚI — SPEC_FIX_2_6 §CODER 2] Flora (ecosystem foundation) — path CỤ
+    # THỂ hơn "form_1_planet_foundation" chung (planet, xem entry ngay dưới)
+    # nên PHẢI đứng TRƯỚC, đúng quy ước "path dài/cụ thể hơn đứng trước path
+    # ngắn/chung hơn" đã ghi ở đầu file.
+    #
+    # LƯU Ý LỆCH SO VỚI VĂN BẢN SPEC (mục 2 §CODER 2 phần A): SPEC yêu cầu
+    # đặt entry ("form_1_planet_foundation", "planet") TRƯỚC entry
+    # ecosystem_foundation. Làm đúng y văn bản đó sẽ khiến MỌI dot-path
+    # ecosystem_foundation.* (vì cũng startswith "form_1_planet_foundation")
+    # bị entry "planet" nuốt mất trước khi vòng lặp chạm tới entry "flora"
+    # — route_library_type() dùng "return ở match đầu tiên", nên flora sẽ
+    # KHÔNG BAO GIỜ được chọn nữa, phá vỡ toàn bộ FloraDistiller đang hoạt
+    # động. Giữ đúng tinh thần thật của SPEC (field planet_identity.* phải
+    # về "planet", không lọt vào flora — điều này ĐÃ đúng vì flora chỉ match
+    # "...ecosystem_foundation", không match "...planet_identity") bằng
+    # cách đặt flora (cụ thể hơn) trước, planet (chung hơn, bắt phần còn lại
+    # của form_1_planet_foundation.*) sau. Hành vi cuối cùng giống hệt ý đồ
+    # của SPEC, chỉ đổi thứ tự khai báo để không vỡ flora.
+    ("form_1_planet_foundation.ecosystem_foundation", "flora"),
+
+    # [MỚI — SPEC_FIX_2_6] Planet — bắt phần còn lại của
+    # form_1_planet_foundation.* (planet_identity, v.v.) mà KHÔNG phải
+    # ecosystem_foundation (đã match ở entry flora bên trên).
+    ("form_1_planet_foundation", "planet"),
+
     # Species (biology / morphology)
     ("form_2_civilization_layer.biology_and_behavior", "species"),
-
-    # Flora (ecosystem foundation)
-    ("form_1_planet_foundation.ecosystem_foundation", "flora"),
 
     # Architecture (cụ thể hơn → trước technology/culture chung)
     (
@@ -57,47 +79,42 @@ TARGET_FORM_FIELD_TO_LIBRARY_TYPE: list[tuple[str, str]] = [
     # None → Gate 6.5 reject có log (mục 2.3 Spec). Cần Sếp quyết định lâu dài:
     # bổ sung query pattern mới vào t0_search.py hay seed thủ công 1 lần.
 
-    # KHÔNG có entry cho "planet_environment" (mục 2.4 Spec) — entity_type này
-    # của VisualBlueprint không có library_type tương ứng trong §16-27.
-    # route_library_type() trả None → Gate 6.5 reject có log, không phải lỗi
-    # hệ thống. Blueprint vẫn upload bình thường vào visual_blueprint_collection
-    # / fiction_knowledge qua nhánh hiện có của T5.
+    # [CẬP NHẬT — SPEC_FIX_2_6] "form_1_planet_foundation" (entry ở trên) giờ
+    # bắt được các dot-path của planet_environment qua target_form_field.
+    # Ghi chú cũ ở đây ("KHÔNG có entry cho planet_environment") đã hết hiệu
+    # lực kể từ SPEC_PLANET_ROTATION_MASTER.md — xem thêm fallback tương ứng
+    # trong ENTITY_TYPE_FALLBACK_TO_LIBRARY_TYPE bên dưới cho trường hợp
+    # target_form_field rỗng.
 ]
 
 # ---------------------------------------------------------------------------
 # Fallback khi target_form_field rỗng hoặc không match bảng trên.
 # Dùng blueprint.entity_type trực tiếp (áp dụng khi entity_type nằm trong
-# tập hợp lệ của VisualBlueprint30). "planet_environment" cố ý KHÔNG có
-# entry → route_library_type() trả None (mục 2.4 Spec).
+# tập hợp lệ của VisualBlueprint30). [CẬP NHẬT — SPEC_FIX_2_6]
+# "planet_environment" nay CÓ entry → "planet" (trước đây cố ý bỏ trống).
 # ---------------------------------------------------------------------------
 ENTITY_TYPE_FALLBACK_TO_LIBRARY_TYPE: dict[str, str] = {
     "species": "species",
     "creature": "creature",
     "architecture": "architecture",
-    # "planet_environment": cố ý KHÔNG có entry → None
+    # [MỚI — SPEC_FIX_2_6 §CODER 2] planet_environment (entity_type cũ của
+    # VisualBlueprint30) giờ có library_type tương ứng — "planet". Trước đây
+    # cố ý KHÔNG có entry (route trả None); nay bổ sung theo mục 2 §CODER 2
+    # phần B của SPEC_PLANET_ROTATION_MASTER.md.
+    "planet_environment": "planet",
 }
 
 # ---------------------------------------------------------------------------
-# LIBRARY_REQUIRED_FIELDS — baseline tối thiểu theo ví dụ mục 5 + mục 6
-# tài liệu Architect.
+# [SPEC_FIX_2_6 §CODER 2 phần C] LIBRARY_REQUIRED_FIELDS ĐÃ DI CHUYỂN sang
+# config.py (Coder 1 sở hữu — xem config.py, ngay dưới PLANET_TYPE_CATALOG).
+# Theo quy tắc §4.6 SPEC_PLANET_ROTATION_MASTER.md, dict này chỉ được định
+# nghĩa 1 nơi DUY NHẤT. Import + re-export ở đây để bất kỳ module nào đang
+# `from library_routing import LIBRARY_REQUIRED_FIELDS` (VD:
+# t4_5_library_distill.py) không bị vỡ — KHÔNG cần sửa nơi khác.
 #
-# Species: bắt buộc skin_color (nhận dạng thị giác chính) + prompt_keywords
-#   (output sẵn cho Repo 4).
-# Architecture: bắt buộc style + material (2 trụ cột visual identity).
-# Các library_type khác chưa có đặc tả riêng → baseline [\"prompt_keywords\"]
-#   (field này luôn cần có để Repo 4 lắp ráp). Cần review lại nếu tỉ lệ
-#   incomplete > 50% qua dry-run (mục 2.5 Spec).
+# Bản định nghĩa cũ tại đây (trước bản này) đã được xoá theo đúng lộ trình
+# Coder 1 mô tả trong CODER1_DELIVERABLE_NOTES_PLANET_ROTATION.md: "Coder 2
+# sẽ đổi library_routing.py sang import từ config trước khi bản cũ được dọn
+# ở merge review cuối cùng" — merge review đó chính là bước này.
 # ---------------------------------------------------------------------------
-LIBRARY_REQUIRED_FIELDS: dict[str, list[str]] = {
-    "species": ["skin_color", "prompt_keywords"],
-    "creature": ["prompt_keywords"],
-    "flora": ["prompt_keywords"],
-    "architecture": ["style", "material"],
-    "costume": ["prompt_keywords"],
-    "technology": ["prompt_keywords"],
-    "culture": ["prompt_keywords"],
-    "character_blueprint": ["prompt_keywords"],
-    "visual_style": ["style_preset"],
-    # "occupation": không khai báo vì không bao giờ route tới đây (không có
-    # nguồn harvest) — nếu vô tình lọt qua, gate sẽ dùng default [\"prompt_keywords\"].
-}
+from config import LIBRARY_REQUIRED_FIELDS  # noqa: E402, F401 (re-export cho backward compat)

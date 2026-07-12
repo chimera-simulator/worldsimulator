@@ -200,6 +200,76 @@ WORLDBUILDING_ANCHOR_TERMS: List[str] = [
 WORLDBUILDING_ANCHOR_INJECT_COUNT: int = 1
 
 
+# =============================================================================
+# [MỚI — SPEC_FIX_2_6 — Planet-Type Rotation] Mục 2.6
+# =============================================================================
+# 16 archetype hành tinh dùng làm anchor xoay vòng cho T0 (Coder 1 sở hữu:
+# config.py + t0_search.py + main.py). Thứ tự trong danh sách này CHÍNH LÀ
+# thứ tự cursor xoay (cursor_index trong blackbook["planet_rotation"]).
+#
+# Chú ý giám sát 2 cặp dễ trùng domain khi sinh query (mục 1.4 Spec):
+# - desert_world / desert_ruins_world
+# - jungle_world / forest_ruins_world
+# =============================================================================
+PLANET_TYPE_CATALOG: List[str] = [
+    "desert_world",
+    "desert_ruins_world",
+    "ocean_world",
+    "jungle_world",
+    "forest_ruins_world",
+    "crystal_world",
+    "ice_world",
+    "volcanic_world",
+    "gas_giant_world",
+    "toxic_world",
+    "mechanical_world",
+    "hollow_world",
+    "shadow_world",
+    "celestial_world",
+    "fungal_world",
+    "ruined_city_world",
+]
+
+
+# =============================================================================
+# [DI CHUYỂN — SPEC_FIX_2_6 mục 1.2/1.4 — trước ở library_routing.py]
+# LIBRARY_REQUIRED_FIELDS — baseline tối thiểu cho Gate 6.5 (Library
+# Distillation) + Gate 5 hard-check (planet).
+#
+# QUAN TRỌNG (quy tắc §4.6 SPEC_PLANET_ROTATION_MASTER): LIBRARY_REQUIRED_FIELDS
+# chỉ được định nghĩa 1 nơi DUY NHẤT — ở đây (config.py). Bản định nghĩa cũ
+# trong library_routing.py CHƯA bị xóa (Coder 2 sẽ đổi sang import từ đây
+# trước, tránh vỡ import giữa các coder chạy song song); sẽ xóa bản cũ khi
+# merge review cuối.
+#
+# Species: bắt buộc skin_color (nhận dạng thị giác chính) + prompt_keywords
+#   (output sẵn cho Repo 4).
+# Architecture: bắt buộc style + material (2 trụ cột visual identity).
+# Planet (MỚI): bắt buộc 4 dot-path nền tảng của form_1_planet_foundation —
+#   dùng bởi t3_normalize.py::check_planet_required_fields() (Gate 5) và
+#   distillers/planet.py::PlanetDistiller (Gate 6.5).
+# Các library_type khác chưa có đặc tả riêng → baseline ["prompt_keywords"].
+# =============================================================================
+LIBRARY_REQUIRED_FIELDS: dict[str, list[str]] = {
+    "species": ["skin_color", "prompt_keywords"],
+    "creature": ["prompt_keywords"],
+    "flora": ["prompt_keywords"],
+    "architecture": ["style", "material"],
+    "costume": ["prompt_keywords"],
+    "technology": ["prompt_keywords"],
+    "culture": ["prompt_keywords"],
+    "character_blueprint": ["prompt_keywords"],
+    "visual_style": ["style_preset"],
+    "planet": [
+        "form_1_planet_foundation.planet_identity.planet_type",
+        "form_1_planet_foundation.planet_identity.terrain_patterns",
+        "form_1_planet_foundation.planet_identity.climate_patterns",
+        "form_1_planet_foundation.ecosystem_foundation.dominant_ecosystem",
+    ],
+    # "occupation": không khai báo — không có nguồn harvest
+}
+
+
 def _flatten_leaf_fields(node: dict, prefix: str = "") -> List[str]:
     """Duyệt đệ quy 1 sub-dict của MASTER_SCHEMA_2_0, trả list dot-path
     của các field lá (leaf = giá trị không phải dict lồng thêm)."""
@@ -276,21 +346,6 @@ MIN_REQUIRED_VIEWS: list[str] = ["front_view", "side_view"]
 
 MONGODB_URI: str = os.getenv("MONGODB_URI", "")
 MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "world_simulator")
-
-# =============================================================================
-# [MỚI — FIX tách bạch quota T0/T2] Trước đây T0 (discovery: đếm số link
-# search-engine trả về) và T2 (scrape: đếm số link THỰC SỰ fetch) dùng
-# CHUNG một `BudgetManager.consume_url()` -> T0 chạy trước, luôn trừ hết
-# quota trong lúc discovery -> T2 luôn nhận 0 URL, bị tưởng nhầm là do
-# Gate 2 loại hết.
-#
-# T0 GIỮ NGUYÊN bộ đếm cũ (`budget.consume_url()` qua object BudgetManager
-# được truyền vào run_search_pipeline — KHÔNG đổi gì ở t0_search.py).
-#
-# T2 giờ có bộ đếm RIÊNG, độc lập hoàn toàn — cấu hình qua biến env MỚI
-# này, KHÔNG tái dùng biến/attribute nào của BudgetManager phía T0.
-# =============================================================================
-T2_SCRAPE_MAX_URLS: int = int(os.getenv("T2_SCRAPE_MAX_URLS", "150"))
 
 # =============================================================================
 # QUALITY SCORER — dùng bởi core/quality_scorer.py (Gate 5, run_gate_5()).

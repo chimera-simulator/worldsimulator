@@ -88,6 +88,110 @@ def save_blackbook(path: str, blackbook: dict) -> None:
         logger.error(f"❌ [MAIN] Không thể ghi blackbook '{path}': {e}")
 
 
+# =============================================================================
+# [SPEC_FIX_2_6][Coder 1 — lượt 2] Planet-Type Rotation — engine trong main.py
+# =============================================================================
+PLANET_ROTATION_KEY = "planet_rotation"
+
+
+def _get_current_planet_archetype(blackbook: dict) -> dict:
+    """Đọc trạng thái planet rotation hiện tại từ blackbook.
+    Khởi tạo schema mặc định nếu chưa tồn tại."""
+    if PLANET_ROTATION_KEY not in blackbook:
+        blackbook[PLANET_ROTATION_KEY] = {
+            "cursor_index": 0,
+            "in_progress": None,
+            "completed_this_week": [],
+            "failed_aborted_log": [],
+        }
+    return blackbook[PLANET_ROTATION_KEY]
+
+
+def _advance_planet_cursor(blackbook: dict, cfg=None) -> str:
+    """Xoay cursor sang archetype kế tiếp trong PLANET_TYPE_CATALOG.
+    Chỉ gọi khi archetype hiện tại đã COMPLETED hoặc FAILED_ABORTED.
+    Trả về archetype_id tiếp theo."""
+    cfg = cfg or config
+    catalog = cfg.PLANET_TYPE_CATALOG
+    rotation = _get_current_planet_archetype(blackbook)
+    next_idx = (rotation["cursor_index"] + 1) % len(catalog)
+    rotation["cursor_index"] = next_idx
+    archetype_id = catalog[next_idx]
+    logger.info(f"🔄 [PlanetRotation] Cursor → [{next_idx}] '{archetype_id}'")
+    return archetype_id
+
+
+def _handle_planet_gate_result(
+    blackbook: dict,
+    gate_result: dict,
+    gate_report: dict,
+    working_planet_id: str,
+    cfg=None,
+) -> None:
+    """Xử lý kết quả Gate 5 cho planet document:
+    - PASS → status = "completed", ghi completed_this_week, xoay cursor
+    - REJECT do thiếu required_fields → status = "retry_pending",
+      retry_count += 1, nạp missing fields vào fields_pending
+    - retry_count >= 3 → status = "failed_aborted", ghi failed_aborted_log,
+      xoay cursor. Data MongoDB KHÔNG xóa.
+
+    QUAN TRỌNG: retry_count đếm theo SỐ CỬA SỔ 25 PHÚT KHÁC NHAU (tức số
+    lần run_pipeline_once() khác nhau reject cùng 1 working planet),
+    KHÔNG phải số lần gọi API trong cùng 1 cửa sổ — vì hàm này chỉ được
+    gọi tối đa 1 lần / chu kỳ pipeline (1 cửa sổ) cho working planet hiện
+    tại, retry_count += 1 mỗi lần gọi tự nhiên khớp đúng định nghĩa này.
+    """
+    cfg = cfg or config
+    rotation = _get_current_planet_archetype(blackbook)
+    in_progress = rotation.get("in_progress") or {}
+    archetype_id = in_progress.get("archetype_id", "unknown")
+    reject_reason = gate_result.get("reject_reason")
+
+    if reject_reason is None:
+        # PASS → hoàn thành
+        in_progress["status"] = "completed"
+        if archetype_id not in rotation["completed_this_week"]:
+            rotation["completed_this_week"].append(archetype_id)
+        rotation["in_progress"] = None
+        _advance_planet_cursor(blackbook, cfg)
+        logger.info(f"✅ [PlanetRotation] '{archetype_id}' COMPLETED.")
+
+    else:
+        # REJECT
+        current_retry = in_progress.get("retry_count", 0)
+        missing_fields = gate_result.get("missing_required_fields", [])
+
+        if current_retry >= 2:  # retry_count 0,1,2 → sau lần 3 này thành failed
+            in_progress["retry_count"] = current_retry + 1  # = 3
+            in_progress["status"] = "failed_aborted"
+            rotation["failed_aborted_log"].append({
+                "working_planet_id": working_planet_id,
+                "archetype_id": archetype_id,
+                "retry_count": current_retry + 1,
+                "aborted_at": datetime.now(timezone.utc).isoformat(),
+            })
+            rotation["in_progress"] = None
+            _advance_planet_cursor(blackbook, cfg)
+            logger.warning(
+                f"⛔ [PlanetRotation] '{archetype_id}' FAILED_ABORTED "
+                f"(retry_count={current_retry + 1}). "
+                f"Data MongoDB giữ nguyên với flag failed_aborted."
+            )
+        else:
+            # retry_pending — cursor KHÔNG xoay
+            in_progress["retry_count"] = current_retry + 1
+            in_progress["status"] = "retry_pending"
+            # Nạp lại đúng field còn thiếu (không cào lại từ đầu)
+            if missing_fields:
+                in_progress["fields_pending"] = missing_fields
+                logger.info(
+                    f"🔁 [PlanetRotation] '{archetype_id}' retry_pending "
+                    f"(retry_count={current_retry + 1}), "
+                    f"{len(missing_fields)} field thiếu: {missing_fields}"
+                )
+            rotation["in_progress"] = in_progress
+
+
 def _load_existing_visual_ids() -> dict:
     """Nạp visual_id đã tồn tại trong DB để t4_deduplicate.py biết đâu là
     document mới, đâu là document cần merge/flag review."""
@@ -266,40 +370,126 @@ async def run_pipeline_once(cfg=None) -> dict:
                 message=f"RESET_BLACKBOOK triggered — {unban_count} domains unbanned.",
             )
 
-    # (2) [MỚI — Progressive Gap Filling] Load pending_fields TRƯỚC T0.
-    pending_fields = _load_pending_fields_from_db()
+    # (2) [SPEC_FIX_2_6][Coder 1 — lượt 2] Planet-Type Rotation — xác định
+    # archetype đang làm việc TRƯỚC T0, để seed_kw/anchor_name ép ngữ cảnh
+    # đúng archetype cho toàn bộ query của chu kỳ này.
+    rotation = _get_current_planet_archetype(blackbook)
+    in_progress = rotation.get("in_progress")
+    # [SPEC_FIX_2_6 — lượt 2, fix REJECT] Tính 1 lần, dùng lại ở cả nhánh
+    # xác định archetype VÀ ở bước (3)/(4) bên dưới — tránh lặp điều kiện
+    # rải rác nhiều chỗ dễ lệch nhau giữa các lần sửa.
+    is_retry_pending = bool(in_progress and in_progress.get("status") == "retry_pending")
 
-    if pending_fields is None and not _visual_blueprint_collection_is_empty():
-        # DB có document nhưng KHÔNG document nào còn pending_fields ->
-        # Fiction Knowledge Base đã đầy đủ 100%. Dừng hẳn, không phí T0->T5.
-        obs.event(step="PIPELINE_START", agent="main", status="DONE",
-                  message="Fiction Knowledge Base đã đầy. Dừng pipeline.")
-        logger.info("✅ [MAIN] Fiction Knowledge Base đã đầy. Dừng pipeline.")
-        return {"new": 0, "merged": 0, "rejected": 0, "errors": [], "skipped_reason": "kb_full"}
+    if is_retry_pending:
+        # Lấy lại fields_pending từ lần trước để chỉ search bù phần thiếu
+        current_planet_archetype_id = in_progress["archetype_id"]
+        working_planet_id = in_progress["working_planet_id"]
+        planet_target_fields = in_progress.get("fields_pending", [])
+        logger.info(
+            f"🔁 [PlanetRotation] Tiếp tục retry '{current_planet_archetype_id}' — "
+            f"{len(planet_target_fields)} field pending."
+        )
+    else:
+        # Lấy archetype mới theo cursor (bỏ qua in_progress dở dang không
+        # phải retry_pending — trường hợp này không nên xảy ra bình
+        # thường vì _handle_planet_gate_result() luôn set None/retry_pending
+        # cuối mỗi chu kỳ, nhưng vẫn khởi tạo mới an toàn nếu gặp).
+        planet_catalog = cfg.PLANET_TYPE_CATALOG
+        cursor_idx = rotation["cursor_index"]
+        current_planet_archetype_id = planet_catalog[cursor_idx % len(planet_catalog)]
+        # [SPEC_FIX_2_6 — lượt 2, fix REJECT] full-scan cho archetype mới —
+        # từ bản fix này trở đi, `effective_target_fields` ở bước (3) bên
+        # dưới THẬT SỰ giữ nguyên `None` (full-scan), KHÔNG còn bị fallback
+        # sang `pending_fields` toàn cục nữa (khác bản trước bị REJECT).
+        planet_target_fields = None
+        working_planet_id = f"PLANET_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        rotation["in_progress"] = {
+            "working_planet_id": working_planet_id,
+            "archetype_id": current_planet_archetype_id,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "status": "in_progress",
+            "retry_count": 0,
+            "fields_filled": [],
+            "fields_pending": [],
+        }
+        logger.info(
+            f"🪐 [PlanetRotation] Archetype mới '{current_planet_archetype_id}' "
+            f"(working_planet_id={working_planet_id})."
+        )
+
+    # seed_kw cho archetype hiện tại — ép ngữ cảnh Target_Concept ở T0.
+    planet_seed_kw = f"{current_planet_archetype_id.replace('_', ' ')} planet concept art worldbuilding"
+
+    # (3) [SPEC_FIX_2_6 — lượt 2, fix REJECT BLOCKING] Progressive Gap
+    # Filling (DB-driven) CHỈ áp dụng cho trạng thái retry_pending — dùng
+    # `planet_target_fields` (= fields_pending của CHÍNH working_planet_id
+    # đang retry, lấy từ `in_progress`). Archetype MỚI luôn full-scan toàn
+    # bộ field, KHÔNG merge với `pending_fields` toàn cục nữa.
+    #
+    # Lý do: `_load_pending_fields_from_db()` quét TOÀN BỘ
+    # `visual_blueprint_collection`, KHÔNG lọc theo `working_planet_id`
+    # hay `entity_type` (field này chưa tồn tại trong
+    # `VisualBlueprint30`/metadata). `None` (full-scan) là falsy nên bản
+    # cũ (`planet_target_fields if planet_target_fields else pending_fields`)
+    # tự động fallback sang `pending_fields` mỗi khi archetype mới bắt đầu
+    # — từ chu kỳ thứ 2 trở đi `pending_fields` gần như luôn không rỗng
+    # (đúng bản chất Visual-First), nên archetype mới bị gán field thiếu
+    # của archetype/entity KHÁC trong khi vẫn dùng anchor_name/seed_kw của
+    # CHÍNH NÓ — tái tạo lại đúng vấn đề "mông lung, sai chủ đích" mà
+    # Planet-Type Rotation (SPEC_ADDENDUM 2.6) được thiết kế để triệt tiêu.
+    #
+    # Fix (phương án (a) trong REJECT — MVP, không đụng schema Coder 2/3):
+    # bỏ hẳn merge chéo. Nếu (a) làm giảm hiệu quả gap-filling toàn cục,
+    # đây là câu hỏi để gửi lead cho Giai đoạn 2 (thêm `working_planet_id`
+    # vào `metadata.gap_filling_status` — phương án (b) trong REJECT),
+    # KHÔNG tự quyết định một mình ở lượt fix này.
+    if is_retry_pending:
+        effective_target_fields = planet_target_fields
+    else:
+        effective_target_fields = None  # full-scan THẬT cho archetype mới — không fallback global
+
+    # (4) [MỚI — Progressive Gap Filling] Check "KB đã đầy" — CHỈ chạy khi
+    # KHÔNG đang retry: nếu đang retry_pending thì working_planet_id hiện
+    # tại CHẮC CHẮN còn field required thiếu (đó là lý do nó retry), nên
+    # phải luôn chạy chu kỳ này bất kể phần còn lại của KB có vẻ đầy hay
+    # không. `pending_fields`/`_load_pending_fields_from_db()` từ đây trở
+    # đi CHỈ còn dùng cho việc check "KB đã đầy" này — không còn dùng để
+    # set `effective_target_fields` nữa (xem bước (3) ở trên).
+    if not is_retry_pending:
+        pending_fields = _load_pending_fields_from_db()
+        if pending_fields is None and not _visual_blueprint_collection_is_empty():
+            # DB có document nhưng KHÔNG document nào còn pending_fields ->
+            # Fiction Knowledge Base đã đầy đủ 100%. Dừng hẳn, không phí T0->T5.
+            obs.event(step="PIPELINE_START", agent="main", status="DONE",
+                      message="Fiction Knowledge Base đã đầy. Dừng pipeline.")
+            logger.info("✅ [MAIN] Fiction Knowledge Base đã đầy. Dừng pipeline.")
+            return {"new": 0, "merged": 0, "rejected": 0, "errors": [], "skipped_reason": "kb_full"}
 
     total_fields = len(
         get_form_fields("form_1_planet_foundation")
         + get_form_fields("form_2_civilization_layer")
     )
-    if pending_fields:
-        skipped = total_fields - len(pending_fields)
+    if effective_target_fields:
+        skipped = total_fields - len(effective_target_fields)
         logger.info(
-            f"🎯 [MAIN] Gap-Aware Mode: Chỉ tìm {len(pending_fields)} "
+            f"🎯 [MAIN] Gap-Aware Mode: Chỉ tìm {len(effective_target_fields)} "
             f"field đang thiếu, bỏ qua {skipped} field đã đầy."
         )
         obs.event(step="T0_SEARCH", agent="main", status="INFO",
                   message=(
-                      f"Gap-Aware Mode: {len(pending_fields)}/{total_fields} "
+                      f"Gap-Aware Mode: {len(effective_target_fields)}/{total_fields} "
                       f"field pending — bỏ qua {skipped} field đã đầy."
                   ),
-                  extra={"pending_fields": pending_fields})
+                  extra={"pending_fields": effective_target_fields})
     else:
         logger.info(f"🔎 [MAIN] Full-Scan Mode: tìm toàn bộ {total_fields} field (Run 1 / cold-start).")
 
     try:
         # === T0: Search (blackbook injected — KHÔNG tự load/save) ===
         search_results = await run_search_pipeline(
-            blackbook, budget=budget, obs=obs, target_fields=pending_fields,
+            blackbook, budget=budget, obs=obs, target_fields=effective_target_fields,
+            anchor_name=current_planet_archetype_id,   # [MỚI — SPEC_FIX_2_6]
+            seed_kw=planet_seed_kw,                     # [MỚI — SPEC_FIX_2_6]
         )
         obs.event(step="T0_SEARCH", agent="t0_search", status="SUCCESS",
                   items_processed=len(search_results),
@@ -336,24 +526,8 @@ async def run_pipeline_once(cfg=None) -> dict:
                   message=f"T2 hoàn thành — {len(scraped_docs)} document qua Gate 2.")
 
         if not scraped_docs:
-            # [FIX] Trước đây message này giả định luôn là "Gate 2 loại hết",
-            # nhưng scraped_docs rỗng có thể do nhiều nguyên nhân khác nhau ở
-            # T2: (a) quota scrape RIÊNG của T2 (config.T2_SCRAPE_MAX_URLS)
-            # hết ngay từ đầu, (b) toàn bộ URL fetch lỗi qua adaptive_router
-            # (domain ban, network fail...), hoặc (c) Gate 2 thực sự loại hết
-            # vì visual-keyword density thấp. Không phân biệt được chính xác
-            # nguyên nhân nào ở tầng main.py (run_scrape_pipeline không trả
-            # breakdown), nên message giờ liệt kê đủ khả năng thay vì khẳng
-            # định nhầm là "Gate 2" — chi tiết hơn (quota T2 dùng bao nhiêu)
-            # xem log WARNING riêng của t2_scrape.py ở cùng run_id.
             obs.event(step="T2_SCRAPE", agent="t2_scrape", status="WARNING",
-                      message=(
-                          "T2 không trả về document nào — có thể do hết quota "
-                          "scrape riêng của T2, toàn bộ URL fetch lỗi, hoặc bị "
-                          "Gate 2 loại hết vì visual-keyword density thấp. "
-                          "Xem log chi tiết của t2_scrape.py (cùng run_id) để "
-                          "xác định nguyên nhân cụ thể — dừng chu kỳ."
-                      ))
+                      message="T2 không còn document nào sau Gate 2 — dừng chu kỳ.")
             return {"new": 0, "merged": 0, "rejected": 0, "errors": ["t2_empty"]}
 
         # [CODER 2] Time-budget check sau T2
@@ -416,6 +590,36 @@ async def run_pipeline_once(cfg=None) -> dict:
                       f"({needs_more_views_count} flag needs_more_views)."
                   ))
 
+        # === [SPEC_FIX_2_6][Coder 1 — lượt 2] Planet Rotation: xử lý kết quả
+        # Gate 5 cho document planet (nếu có) của working planet đang track.
+        # Chỉ document entity_type "planet"/"planet_environment" mới liên
+        # quan tới rotation; các entity_type khác (species/creature/...) bị
+        # bỏ qua ở đây (chúng không ảnh hưởng cursor/retry của planet).
+        _planet_entity_types = {"planet", "planet_environment"}
+        _planet_gate_results = [
+            (result, report) for result, report in gate5_results
+            if (result.get("blueprint") or {}).get("entity_type") in _planet_entity_types
+        ]
+        if _planet_gate_results:
+            if len(_planet_gate_results) > 1:
+                logger.warning(
+                    f"⚠️ [PlanetRotation] {len(_planet_gate_results)} document "
+                    f"planet trong cùng 1 chu kỳ — chỉ xử lý document đầu tiên "
+                    f"cho working_planet_id='{working_planet_id}', các document "
+                    f"còn lại được bỏ qua ở tầng rotation (vẫn tiếp tục qua "
+                    f"T4/T5 bình thường nếu PASS Gate 5)."
+                )
+            _planet_result, _planet_report = _planet_gate_results[0]
+            _handle_planet_gate_result(
+                blackbook, _planet_result, _planet_report, working_planet_id, cfg,
+            )
+        else:
+            logger.info(
+                f"ℹ️ [PlanetRotation] Chu kỳ này không tạo ra document planet "
+                f"nào cho working_planet_id='{working_planet_id}' — trạng thái "
+                f"rotation giữ nguyên, thử lại chu kỳ sau."
+            )
+
         # === T4: Deduplicate ===
         existing_visual_ids = _load_existing_visual_ids()
         deduped = deduplicate(passed_gate5, existing_visual_ids)
@@ -450,6 +654,18 @@ async def run_pipeline_once(cfg=None) -> dict:
                       f"T5 hoàn thành — new={report['new']}, merged={report['merged']}, "
                       f"rejected={report['rejected']}."
                   ))
+
+        # [SPEC_FIX_2_6] Weekly health counter — planet rotation
+        rotation_final = _get_current_planet_archetype(blackbook)
+        completed_count = len(rotation_final.get("completed_this_week", []))
+        failed_count = len(rotation_final.get("failed_aborted_log", []))
+        retry_pending = 1 if (rotation_final.get("in_progress") or {}).get("status") == "retry_pending" else 0
+        logger.info(
+            f"📊 [PlanetRotation][Weekly] "
+            f"Hoàn thành={completed_count} | "
+            f"retry_pending={retry_pending} | "
+            f"failed_aborted={failed_count}"
+        )
 
         duration = time.time() - start
         obs.event(step="PIPELINE_DONE", agent="main", status="DONE",

@@ -198,6 +198,53 @@ def check_g_global_rule_cross_check(blueprint: dict, rules: List[dict]) -> Optio
     return {"reject_reason": None, "rule_hits": hits}
 
 
+def check_planet_required_fields(
+    schema_record: Optional[dict],
+    entity_type: str,
+    cfg=None,
+) -> List[str]:
+    """[SPEC_FIX_2_6] Check cứng mới: kiểm tra planet document có đủ
+    LIBRARY_REQUIRED_FIELDS["planet"] không.
+
+    Chỉ chạy khi entity_type tương ứng với planet (có thể là "planet_environment"
+    hoặc "planet" tùy blueprint). Các entity_type khác: bỏ qua (trả []).
+
+    Trả về: List[str] dot-path của các field còn thiếu.
+             Trả [] nếu đủ hoặc không phải planet entity.
+
+    KHÔNG reject ở đây — chỉ xuất danh sách thiếu. Quyết định reject
+    thuộc về validate_combined_output() dựa trên kết quả trả về.
+
+    `cfg`: cho phép tiêm config khác (dùng bởi run_gate_5/test), theo đúng
+    pattern DI của check_b_multi_view_completeness()/check_g_global_rule_cross_check()
+    trong file này — mặc định dùng module config.py thật nếu không truyền.
+    """
+    cfg = cfg or _config
+
+    # Chỉ kiểm tra khi là planet entity
+    planet_entity_types = {"planet_environment", "planet"}
+    if entity_type not in planet_entity_types:
+        return []
+
+    required = getattr(cfg, "LIBRARY_REQUIRED_FIELDS", {}).get("planet", [])
+    if not required or schema_record is None:
+        return []
+
+    missing = []
+    for dot_path in required:
+        value = _get_nested(schema_record, dot_path)
+        # field bị coi là thiếu nếu: None, "", [], {}
+        if not value:
+            missing.append(dot_path)
+
+    if missing:
+        logger.info(
+            f"⚠️ [Gate 5][PlanetCheck] Planet thiếu {len(missing)} required field: {missing}"
+        )
+
+    return missing
+
+
 def validate_combined_output(
     combined: dict, cfg=None, rules: Optional[List[dict]] = None
 ) -> dict:
@@ -330,6 +377,28 @@ def validate_combined_output(
         logger.info(f"⚠️ [Gate 5][Check E] '{visual_id}' thiếu khai báo pending_fields tường minh.")
 
     # ------------------------------------------------------------------
+    # CHECK PLANET_REQUIRED (HARD REJECT — chỉ với planet entity):
+    # Kiểm tra planet có đủ LIBRARY_REQUIRED_FIELDS["planet"] không.
+    # Kết quả missing_required_fields được ghi vào result để Coder 1
+    # đọc và nạp vào fields_pending của retry_pending.
+    # [SPEC_FIX_2_6] Interface Coder 3 → Coder 1.
+    # ------------------------------------------------------------------
+    entity_type_for_check = blueprint.get("entity_type", "")
+    planet_missing = check_planet_required_fields(schema_record, entity_type_for_check, cfg)
+    if planet_missing:
+        logger.error(
+            f"❌ [Gate 5][PlanetCheck] Reject '{visual_id}' — "
+            f"planet_required_fields_missing: {planet_missing}"
+        )
+        return {
+            "visual_id": visual_id,
+            "blueprint": blueprint,
+            "schema_record": None,
+            "reject_reason": "planet_required_fields_missing",
+            "missing_required_fields": planet_missing,  # [SPEC_FIX_2_6] Interface key
+        }
+
+    # ------------------------------------------------------------------
     # QUALITY SCORER (SOFT / OBSERVABILITY — không phải Check mới, không
     # reject). Chạy sau Check D vì cần đọc pre_built_prompts.full_character
     # ĐÃ được Check D tự sửa (truncate) nếu có. Gắn quality_gate_passed vào
@@ -348,6 +417,7 @@ def validate_combined_output(
         "blueprint": blueprint,
         "schema_record": schema_record,
         "reject_reason": None,
+        "missing_required_fields": [],  # [MỚI — SPEC_FIX_2_6] luôn có key này, [] khi PASS
     }
     result.update(flags)
 
@@ -390,6 +460,9 @@ def run_gate_5(
     missing_view_fields = blueprint.get("missing_view_fields", [])
     rule_hits = result.get("global_rule_hits", [])
     quality_score = result.get("quality_score")  # None nếu REJECTED (không chấm điểm record bị loại)
+    # Đọc missing_required_fields từ result (nếu có — chỉ khi planet reject,
+    # PASS thì luôn là [] — xem validate_combined_output()):
+    missing_required_fields = result.get("missing_required_fields", [])
 
     if result.get("reject_reason"):
         status = "REJECTED"
@@ -404,6 +477,7 @@ def run_gate_5(
         "reject_reason": result.get("reject_reason"),
         "needs_more_views": needs_more_views,
         "missing_view_fields": missing_view_fields,
+        "missing_required_fields": missing_required_fields,  # [MỚI — SPEC_FIX_2_6]
         "rule_hits": rule_hits,
         "quality_score": quality_score,
         "status": status,
@@ -411,6 +485,10 @@ def run_gate_5(
 
     # Log chuẩn hóa JSON theo mục 105 tài liệu gốc — KHÔNG raise exception.
     log_json(report)
+
+    # result cũng cần có key này để Coder 1 đọc được (đề phòng nhánh
+    # exception ở trên chưa có key — set lại đảm bảo interface ổn định):
+    result["missing_required_fields"] = missing_required_fields
 
     return result, report
 

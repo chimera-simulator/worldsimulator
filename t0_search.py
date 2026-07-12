@@ -57,39 +57,38 @@ class SearchResultItem(TypedDict):
 
 
 def generate_queries_for_field(
+    anchor_name: str,
+    seed_kw: str,
     field_name: str,
-    blueprint_context: Optional[str] = None,
 ) -> List[str]:
-    """Sinh đúng 5 query variant cho 1 field (lấy phần cuối của dot-path
-    làm từ khóa chính, ví dụ 'form_1_planet_foundation.planet_identity.terrain_patterns'
-    -> 'terrain patterns').
-
-    [CODER 3 — Scope Fix] Thêm anchor worldbuilding vào mỗi query để
-    ràng buộc search engine trả về kết quả thuộc phạm vi thế giới giả tưởng,
-    không phải kết quả chung chung (VD: 'terrain patterns geology' thay vì
-    chỉ 'terrain patterns').
+    """[SPEC_FIX_2_6][Coder 1 — lượt 2] Sinh đúng 5 query variant cho 1
+    field, ép search engine bám sát seed_kw của archetype planet đang xoay
+    vòng (BREAKING CHANGE chữ ký — đổi từ 2 param
+    `(field_name, blueprint_context=None)` sang 3 param bắt buộc
+    `(anchor_name, seed_kw, field_name)`; không còn random anchor như
+    trước).
 
     Args:
-        blueprint_context: Tên/loại blueprint đang build (VD: 'crystal planet',
-            'underwater civilization'). Nếu None, dùng anchor chung từ
-            WORLDBUILDING_ANCHOR_TERMS.
+        anchor_name: Tên archetype planet (VD: 'jungle_world', 'crystal_world').
+                     Dùng làm prefix ngữ cảnh cho target concept.
+        seed_kw: Từ khóa ngữ cảnh ép buộc (forced context).
+                 Công thức: Target_Concept = {anchor_name} + Context: {seed_kw}
+        field_name: dot-path field cần sinh query
+                    (VD: 'form_1_planet_foundation.planet_identity.terrain_patterns').
     """
     keyword = field_name.split(".")[-1].replace("_", " ")
+    # [SPEC_FIX_2_6] Target_Concept = anchor + forced context seed_kw
+    target_concept = f"{anchor_name} + Context: {seed_kw}"
 
-    # [CODER 3] Chọn anchor: blueprint_context nếu có, ngược lại random từ list
-    if blueprint_context:
-        anchor = blueprint_context
-    else:
-        anchor = random.choice(
-            config.WORLDBUILDING_ANCHOR_TERMS[: config.WORLDBUILDING_ANCHOR_INJECT_COUNT * 3]
-        )
+    # [SPEC_FIX_2_6] Log DEBUG để hiệu chỉnh chất lượng query theo archetype
+    logger.debug(f"[T0][generate_queries] Target_Concept='{target_concept}' field='{field_name}'")
 
     return [
-        f"{keyword} {anchor} concept art",
-        f"{keyword} {anchor} design",
-        f"{keyword} worldbuilding description",
-        f"{keyword} {anchor} reference sheet",
-        f"{keyword} fictional variant types",
+        f"{keyword} {target_concept} concept art",
+        f"{keyword} {target_concept} design",
+        f"{keyword} {anchor_name} worldbuilding description",
+        f"{keyword} {target_concept} reference sheet",
+        f"{keyword} {anchor_name} fictional variant types",
     ]
 
 
@@ -225,10 +224,21 @@ async def _fetch_with_fallback(
 
 
 async def search_field(
-    field_name: str, blackbook: dict, max_results_per_query: int = 5
+    field_name: str,
+    blackbook: dict,
+    max_results_per_query: int = 5,
+    anchor_name: str = "worldbuilding",   # [MỚI — SPEC_FIX_2_6] default fallback an toàn
+    seed_kw: str = "worldbuilding sci-fi concept",  # [MỚI — SPEC_FIX_2_6] default fallback
 ) -> List[SearchResultItem]:
     """Sinh 5 query cho field_name, gọi các search engine song song
-    (asyncio), gắn target_form_field vào từng URL kết quả."""
+    (asyncio), gắn target_form_field vào từng URL kết quả.
+
+    [SPEC_FIX_2_6][Coder 1 — lượt 2] `anchor_name`/`seed_kw`: archetype
+    planet đang xoay vòng (do main.py truyền xuống qua run_search_pipeline()),
+    dùng để ép ngữ cảnh Target_Concept trong generate_queries_for_field().
+    Giữ default fallback an toàn để không phá vỡ caller cũ/test cũ chưa
+    truyền 2 tham số này.
+    """
     engines_cfg = _load_search_engines()
     engines = engines_cfg.get("engines", [])
     banned_domains = set(engines_cfg.get("banned_domains", []))
@@ -238,7 +248,7 @@ async def search_field(
         logger.error("❌ Không có search engine nào được cấu hình (search_engines.json rỗng).")
         return []
 
-    queries = generate_queries_for_field(field_name)
+    queries = generate_queries_for_field(anchor_name, seed_kw, field_name)
     results: List[SearchResultItem] = []
 
     sorted_engines = sorted(engines, key=lambda e: e.get("priority", 99))
@@ -299,6 +309,8 @@ async def run_search_pipeline(
     budget=None,   # BudgetManager | None
     obs=None,      # PipelineLogger | None
     target_fields: Optional[List[str]] = None,   # [MỚI — Progressive Gap Filling]
+    anchor_name: str = "worldbuilding",          # [MỚI — SPEC_FIX_2_6]
+    seed_kw: str = "worldbuilding sci-fi concept",  # [MỚI — SPEC_FIX_2_6]
 ) -> List[SearchResultItem]:
     """
     1. Duyệt toàn bộ field trong MASTER_SCHEMA_2_0 (qua get_form_fields) —
@@ -327,6 +339,11 @@ async def run_search_pipeline(
     này (Gap-Aware Mode) thay vì toàn bộ 29 field (Full-Scan Mode). Field
     "rác" (không còn tồn tại trong schema hiện hành) sẽ bị lọc bỏ; nếu
     toàn bộ target_fields đều rác, fallback về Full-Scan Mode.
+
+    [MỚI — SPEC_FIX_2_6] `anchor_name`/`seed_kw`: archetype planet đang
+    xoay vòng (do main.py xác định qua PLANET_TYPE_CATALOG/planet_rotation
+    trong blackbook), truyền xuống search_field() -> generate_queries_for_field()
+    để ép ngữ cảnh Target_Concept. Có default fallback an toàn.
     """
     full_field_set = (
         get_form_fields("form_1_planet_foundation")
@@ -373,7 +390,11 @@ async def run_search_pipeline(
     results: List[SearchResultItem] = []
     for field in all_fields:
         try:
-            field_results = await search_field(field, blackbook)
+            field_results = await search_field(
+                field, blackbook,
+                anchor_name=anchor_name,
+                seed_kw=seed_kw,
+            )
         except Exception as e:
             logger.error(f"❌ [T0] Lỗi khi search field '{field}': {e}")
             continue
