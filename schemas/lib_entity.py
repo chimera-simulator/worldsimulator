@@ -37,6 +37,16 @@ LibraryType = Literal[
     "occupation",
     "visual_style",
     "character_blueprint",
+    # [MỚI — SPEC_FIX_2_6 §CODER 2] "planet" — file này không nằm trong danh
+    # sách file WRITE/READ của bất kỳ coder nào trong
+    # SPEC_PLANET_ROTATION_MASTER.md, nhưng bổ sung PHẢI làm: nếu không có
+    # entry này, LibEntity(library_type="planet", ...) trong
+    # BaseLibraryDistiller.distill() (bước 9) sẽ raise lỗi validate Pydantic
+    # ngay khi PlanetDistiller chạy thật lần đầu (khác với stub cũ trong
+    # distillers/stubs.py — stub trả {} nên chưa từng gọi tới bước build
+    # LibEntity). Không thêm dòng này thì toàn bộ tính năng planet distill
+    # của SPEC này không thể chạy được trong thực tế.
+    "planet",
 ]
 
 # "complete" = tất cả required fields đã có giá trị.
