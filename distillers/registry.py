@@ -42,7 +42,8 @@ class DistillerRegistry:
 # ---------------------------------------------------------------------------
 from distillers.species import SpeciesDistiller        # noqa: E402
 from distillers.architecture import ArchitectureDistiller  # noqa: E402
-from distillers.stubs import PlanetDistiller, CreatureDistiller  # noqa: E402
+from distillers.stubs import CreatureDistiller          # noqa: E402 (giữ creature stub)
+from distillers.planet import PlanetDistiller           # noqa: E402 (MỚI — real impl, SPEC_FIX_2_6)
 from distillers.technology import TechnologyDistiller  # noqa: E402
 from distillers.culture import CultureDistiller  # noqa: E402
 from distillers.character_blueprint import CharacterBlueprintDistiller  # noqa: E402
@@ -60,12 +61,15 @@ DistillerRegistry.register("visual_style", VisualStyleDistiller)
 DistillerRegistry.register("flora", FloraDistiller)
 DistillerRegistry.register("costume", CostumeDistiller)
 
-# PlanetDistiller: đăng ký dưới khoá "planet_environment" ĐỂ SẴN kiến trúc,
-# NHƯNG route_library_type() hiện tại KHÔNG BAO GIỜ trả "planet_environment"
-# làm library_type (xem library_routing.py — planet_environment không có
-# entry trong ENTITY_TYPE_FALLBACK_TO_LIBRARY_TYPE và không có LibraryType
-# tương ứng trong schemas/lib_entity.py). Đây thuần tuý là bằng chứng
-# "kiến trúc mở rộng được" theo yêu cầu — KHÔNG kích hoạt luồng thật cho
-# tới khi Sếp quyết định bổ sung library_type "planet" (cần sửa cả
-# LibraryType Literal + library_routing.py, ngoài phạm vi SPEC này).
+# [MỚI — SPEC_FIX_2_6 §CODER 2 phần E] PlanetDistiller: implementation
+# thật (distillers/planet.py), thay thế stub cũ trong distillers/stubs.py
+# (stub vẫn giữ nguyên trong file đó — tham khảo lịch sử, không xoá).
+# Đăng ký dưới CẢ HAI key:
+#   - "planet"             → key chính thức, khớp library_type mới trong
+#                             LibraryType Literal (schemas/lib_entity.py)
+#                             và route_library_type() (library_routing.py).
+#   - "planet_environment" → alias cũ, giữ tương thích ngược cho bất kỳ
+#                             caller nào còn tra registry bằng entity_type
+#                             gốc thay vì library_type đã suy luận.
+DistillerRegistry.register("planet", PlanetDistiller)
 DistillerRegistry.register("planet_environment", PlanetDistiller)
