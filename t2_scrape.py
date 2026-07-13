@@ -48,6 +48,8 @@ class ScrapedDocument(TypedDict):
     image_metadata: List[ImageMetadata]
     target_form_field: str
     source_domain: str
+    working_planet_id: str   # MỚI [SPEC_ADDENDUM_2_7 — Coder 1]
+    archetype_id: str        # MỚI [SPEC_ADDENDUM_2_7 — Coder 1]
 
 
 def clean_dom(html: str) -> BeautifulSoup:
@@ -120,15 +122,21 @@ async def scrape_url(
     blackbook: dict,
     budget=None,   # BudgetManager | None  ← đã có trong run_scrape_pipeline
     obs=None,      # PipelineLogger | None ← đã có trong run_scrape_pipeline
+    working_planet_id: str = "",   # MỚI [SPEC_ADDENDUM_2_7 — Coder 1]
+    archetype_id: str = "",        # MỚI [SPEC_ADDENDUM_2_7 — Coder 1]
 ) -> Optional[ScrapedDocument]:
     """
     1. Fetch HTML (stealth headers để tránh bot detection).
     2. soup = clean_dom(html).
     3. raw_text = soup.get_text().
     4. image_metadata = extract_image_metadata(soup).
-    5. density = compute_visual_keyword_density(raw_text).
-    6. GATE 2: nếu density < threshold VÀ không có ảnh -> return None.
-    7. Return ScrapedDocument.
+    5. SÀN TUYỆT ĐỐI (T2.5 addendum): raw_text rỗng tuyệt đối VÀ
+       image_metadata rỗng -> return None (reject_reason='empty_content'),
+       chạy TRƯỚC check density hiện có.
+    6. density = compute_visual_keyword_density(raw_text).
+    7. GATE 2: nếu density < threshold VÀ không có ảnh -> return None.
+    8. Return ScrapedDocument (gồm working_planet_id/archetype_id gán từ
+       tham số truyền vào).
     """
     url = item["url"]
     domain = _domain_of(url)
@@ -153,6 +161,17 @@ async def scrape_url(
         soup = clean_dom(html)
         raw_text = soup.get_text(separator=" ", strip=True)
         image_metadata = extract_image_metadata(soup)
+
+        # [MỚI — SPEC_ADDENDUM_2_7 T2.5] Sàn tuyệt đối rất nhẹ, TRƯỚC check
+        # density hiện có: raw_text rỗng tuyệt đối VÀ image_metadata rỗng ->
+        # drop ngay. KHÔNG chặn raw_text rỗng nhưng CÓ ảnh (triết lý
+        # Visual-First — ảnh vẫn có giá trị dù không có text).
+        if not raw_text.strip() and not image_metadata:
+            logger.info(
+                f"🚫 [T2 Gate 2] Drop '{url}' — reject_reason='empty_content'."
+            )
+            return None
+
         density = compute_visual_keyword_density(raw_text)
 
         if density < VISUAL_KEYWORD_DENSITY_THRESHOLD and len(image_metadata) == 0:
@@ -167,6 +186,8 @@ async def scrape_url(
             image_metadata=image_metadata,
             target_form_field=item.get("target_form_field", ""),
             source_domain=domain,
+            working_planet_id=working_planet_id,
+            archetype_id=archetype_id,
         )
     except Exception as e:
         logger.error(f"❌ [T2] Lỗi xử lý DOM cho '{url}': {e}")
@@ -178,12 +199,18 @@ async def run_scrape_pipeline(
     blackbook: dict,
     budget=None,   # BudgetManager | None
     obs=None,      # PipelineLogger | None
+    working_planet_id: str = "",   # MỚI [SPEC_ADDENDUM_2_7 — Coder 1]
+    archetype_id: str = "",        # MỚI [SPEC_ADDENDUM_2_7 — Coder 1]
 ) -> List[ScrapedDocument]:
     """Scrape song song (asyncio) toàn bộ URL đã qua Gate 1.
 
     [MỚI] `budget` (BudgetManager | None): vì `asyncio.gather()` chạy TẤT
     CẢ task cùng lúc, không thể "dừng giữa chừng" như vòng `for` tuần tự.
     Phải lọc `items` xuống danh sách được phép TRƯỚC KHI tạo `tasks`.
+
+    [MỚI — SPEC_ADDENDUM_2_7 T2.5] `working_planet_id`/`archetype_id`:
+    truyền xuống mỗi lời gọi `scrape_url()` để gán vào từng
+    `ScrapedDocument` (dùng bởi t2_5_planet_gate.py ở bước sau).
     """
     documents: List[ScrapedDocument] = []
 
@@ -202,7 +229,13 @@ async def run_scrape_pipeline(
                 break
             allowed_items.append(item)
 
-    tasks = [scrape_url(None, item, blackbook, budget=budget, obs=obs) for item in allowed_items]
+    tasks = [
+        scrape_url(
+            None, item, blackbook, budget=budget, obs=obs,
+            working_planet_id=working_planet_id, archetype_id=archetype_id,
+        )
+        for item in allowed_items
+    ]
     results = await asyncio.gather(*tasks, return_exceptions=False)
 
     for doc in results:

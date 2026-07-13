@@ -199,18 +199,6 @@ WORLDBUILDING_ANCHOR_TERMS: List[str] = [
 # Số lượng anchor term inject vào mỗi query (không inject tất cả để tránh quá dài)
 WORLDBUILDING_ANCHOR_INJECT_COUNT: int = 1
 
-# =============================================================================
-# [FIX — BUDGET_DOUBLE_CHARGE] Trần số URL T0 được phép thu thập mỗi lần chạy.
-# ĐỘC LẬP với BudgetManager.max_urls (vốn dành riêng cho T2 scrape thật).
-# T0 bị giới hạn tại đây để tránh thu thập URL rác vô hạn khi domain bị
-# misconfigure hoặc search engine trả về kết quả lạ — KHÔNG liên quan đến
-# tài nguyên scrape. Mỗi field có tối đa 5 query × 5 URL = 25 URL/field.
-# 29 field × 25 URL = 725 URL tối đa lý thuyết; trần 500 cho buffer an toàn.
-# =============================================================================
-MAX_DISCOVERY_RESULTS_PER_RUN: int = int(
-    os.getenv("MAX_DISCOVERY_RESULTS_PER_RUN", "500")
-)
-
 
 # =============================================================================
 # [MỚI — SPEC_FIX_2_6 — Planet-Type Rotation] Mục 2.6
@@ -341,6 +329,16 @@ VISUAL_KEYWORD_DENSITY_THRESHOLD: float = float(
 
 # Ngưỡng similarity dùng bởi t4_deduplicate.py
 DEDUP_SIMILARITY_THRESHOLD: float = float(os.getenv("DEDUP_SIMILARITY_THRESHOLD", "0.85"))
+
+# [MỚI — SPEC_ADDENDUM_2_7 T2.5] Ngưỡng similarity dùng bởi
+# t2_5_planet_gate.py để dedupe raw_text THÔ (trước khi qua Gemini) —
+# KHÔNG dùng chung DEDUP_SIMILARITY_THRESHOLD vì bảng đó tính cho prompt
+# đã qua LLM chuẩn hoá, ngữ cảnh khác hẳn raw_text thô.
+RAW_TEXT_DEDUP_THRESHOLD: float = float(os.getenv("RAW_TEXT_DEDUP_THRESHOLD", "0.85"))
+
+# [MỚI — SPEC_ADDENDUM_2_7 T2.5] Số document tối thiểu/field (sau dedupe)
+# để field đó được coi là "đủ điều kiện" gửi sang T3 ở t2_5_planet_gate.py.
+MIN_DOCS_PER_FIELD: int = int(os.getenv("MIN_DOCS_PER_FIELD", "2"))
 
 # =============================================================================
 # [CẬP NHẬT — SPEC_FIX_P1_ARCHITECTURE] Vấn đề 1 & 2
