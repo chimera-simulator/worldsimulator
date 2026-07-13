@@ -19,7 +19,8 @@ import itertools
 import json
 import logging
 import re
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple
 
 from pydantic import ValidationError
@@ -53,10 +54,54 @@ def _get_key_rotator():
 _key_rotator = _get_key_rotator()
 
 
-def _next_api_key() -> Optional[str]:
+def _next_api_key(blackbook: dict | None = None) -> Optional[str]:
+    """Trả key tiếp theo chưa bị quarantine. None nếu tất cả quarantine hoặc không có key."""
     if _key_rotator is None:
         return None
-    return next(_key_rotator)
+
+    quarantine_map = (blackbook or {}).get("key_quarantine", {})
+    now_utc = datetime.now(timezone.utc)
+    total_keys = len(GEMINI_API_KEYS)
+    if total_keys == 0:
+        return None
+
+    for _ in range(total_keys):
+        key = next(_key_rotator)
+        key_id = key[-2:]
+        entry = quarantine_map.get(key_id, {})
+        until_str = entry.get("quarantined_until")
+        if until_str:
+            try:
+                expiry = datetime.fromisoformat(until_str)
+                if now_utc < expiry:
+                    logger.debug(f"🔒 [KeyRotator] Key ...{key_id} đang quarantine đến {until_str}, skip.")
+                    continue
+            except ValueError:
+                pass
+        return key  # Key này chưa quarantine hoặc đã hết hạn quarantine
+
+    logger.error("❌ [KeyRotator] Tất cả API key đang bị quarantine — không còn key nào dùng được.")
+    return None
+
+
+def _quarantine_key(key: str, blackbook: dict, reason: str = "rpd_exhausted") -> None:
+    """Ghi quarantine cho key vào blackbook đến UTC midnight ngày mai.
+    Chỉ lưu 2 ký tự cuối của key — KHÔNG log/lưu key đầy đủ (tránh lộ secret).
+    """
+    key_id = key[-2:]
+    now_utc = datetime.now(timezone.utc)
+    next_reset = (now_utc + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    quarantine_section = blackbook.setdefault("key_quarantine", {})
+    quarantine_section[key_id] = {
+        "quarantined_until": next_reset.isoformat(),
+        "reason": reason,
+    }
+    logger.warning(
+        f"🔒 [KeyQuarantine] Key ...{key_id} bị quarantine đến {next_reset.isoformat()} "
+        f"(reason: {reason})"
+    )
 
 
 def load_prompt_template(path: str) -> str:
@@ -79,28 +124,29 @@ def _call_gemini(
     temperature: float,
     budget: "BudgetManager | None" = None,
     estimated_tokens: int = 1000,
-) -> Optional[str]:
+    blackbook: dict | None = None,
+) -> Tuple[Optional[str], Optional[str]]:
     """Gọi Gemini Flash 2.5 Free với 1 key trong round-robin.
 
-    [MỚI] Nếu `budget` được truyền vào: kiểm tra + TRỪ quota TRƯỚC khi gọi
-    API thật (`model.generate_content`). Đây là điểm trừ quota DUY NHẤT
-    của toàn bộ pipeline — mọi agent khác (t0, t2) trừ quota URL ở tầng
-    riêng của chúng, nhưng quota Gemini call/token CHỈ được trừ ở đây vì
-    đây là nơi DUY NHẤT gọi Gemini API thật (xem docstring đầu file)."""
-
+    Returns: (response_text, error_type)
+      - (text, None)               → thành công
+      - (None, "budget_exhausted") → budget cạn, caller nên break ngay
+      - (None, "content_blocked")  → safety filter, caller nên break ngay
+      - (None, "rate_limit")       → 429 RPM/RPD, caller nên sleep + retry
+      - (None, "network_error")    → timeout/DNS/lỗi SDK, caller nên sleep + retry
+    """
     if budget is not None and not budget.consume_gemini_call(estimated_tokens):
-        logger.warning(
-            "⚠️ [Summarizer] Gemini budget exhausted — bỏ qua call này."
-        )
-        return None
+        logger.warning("⚠️ [Summarizer] Gemini budget exhausted — bỏ qua call này.")
+        return None, "budget_exhausted"
 
-    api_key = _next_api_key()
+    api_key = _next_api_key(blackbook=blackbook)
     if not api_key:
-        logger.error("❌ [Summarizer] Không có Gemini API key nào trong GEMINI_MODEL_NO_1..7.")
-        return None
+        logger.error("❌ [Summarizer] Không có Gemini API key nào khả dụng (tất cả quarantine hoặc rỗng).")
+        return None, "network_error"
 
     try:
         import google.generativeai as genai
+        import google.api_core.exceptions as google_exceptions
 
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
@@ -113,8 +159,7 @@ def _call_gemini(
         )
         response = model.generate_content(user_content)
 
-        # [MỚI] Nếu Gemini trả usage metadata thật, điều chỉnh counter
-        # cho chính xác thay vì giữ nguyên ước tính estimated_tokens.
+        # Cập nhật token thực tế nếu có
         if budget is not None:
             actual = getattr(response, "usage_metadata", None)
             if actual is not None:
@@ -122,10 +167,31 @@ def _call_gemini(
                 if isinstance(actual_total, int):
                     budget.record_actual_tokens(actual_total - estimated_tokens)
 
-        return response.text
+        # Safety filter KHÔNG raise ở generate_content — chỉ raise khi đọc .text
+        try:
+            text = response.text
+            return text, None
+        except (ValueError, IndexError) as e:
+            logger.warning(f"⚠️ [API] Response bị safety filter chặn (không retry): {e}")
+            return None, "content_blocked"
+
     except Exception as e:
-        logger.warning(f"⚠️ [Summarizer] Gemini call thất bại (key rotation sẽ dùng key khác lần sau): {e}")
-        return None
+        # Phân loại: ResourceExhausted = 429 rate-limit; còn lại = network/SDK
+        try:
+            import google.api_core.exceptions as google_exceptions
+            if isinstance(e, google_exceptions.ResourceExhausted):
+                err_msg = str(e).lower()
+                is_rpd = any(kw in err_msg for kw in ("daily", "per day", "quota exhausted", "day"))
+                if is_rpd and blackbook is not None:
+                    _quarantine_key(api_key, blackbook, reason="rpd_exhausted")
+                    logger.warning(f"⚠️ [API] RPD exhausted cho key ...{api_key[-2:]} — đã quarantine.")
+                else:
+                    logger.warning(f"⚠️ [API] Rate limit 429 (RPM tạm thời): {e}")
+                return None, "rate_limit"
+        except ImportError:
+            pass
+        logger.warning(f"⚠️ [API] Lỗi mạng/SDK: {e}")
+        return None, "network_error"
 
 
 def _contains_known_ip(payload: dict) -> list[str]:
@@ -145,6 +211,7 @@ def phase_a_visual_extractor(
     max_retries: int = 2,
     budget: "BudgetManager | None" = None,
     obs: "PipelineLogger | None" = None,
+    blackbook: dict | None = None,
 ) -> Tuple[Optional[dict], bool]:
     system_prompt = load_prompt_template("prompts/phase_a_visual_extractor.txt")
     if not system_prompt:
@@ -162,6 +229,8 @@ def phase_a_visual_extractor(
 
     temperature = 0.2
     attempt = 0
+    system_retry_count = 0   # Đếm retry lỗi hệ thống (rate_limit / network_error)
+    SYSTEM_RETRY_MAX = 5     # Trần cứng — đủ vượt nghẽn RPM, không đủ treo lâu
 
     while attempt <= max_retries:
         # [MỚI] Nếu budget đã cạn TRƯỚC lần gọi này, dừng retry ngay —
@@ -174,12 +243,46 @@ def phase_a_visual_extractor(
             )
             break
 
-        raw_response = _call_gemini(system_prompt, user_content, temperature, budget=budget)
+        raw_response, error_type = _call_gemini(
+            system_prompt, user_content, temperature,
+            budget=budget, blackbook=blackbook,
+        )
 
-        if raw_response is None:
-            attempt += 1
-            temperature = max(0.1, temperature - 0.1)
-            continue
+        # --- Nhóm 1: Dừng ngay, không retry dưới bất kỳ hình thức nào ---
+        if error_type == "budget_exhausted":
+            if obs:
+                obs.budget_exhausted(resource="gemini", agent="summarizer")
+            logger.warning("⚠️ [Phase A] Budget exhausted — dừng retry.")
+            break
+
+        if error_type == "content_blocked":
+            logger.warning("⚠️ [Phase A] Content bị safety filter — dừng retry (retry lại cũng sẽ bị chặn).")
+            break
+
+        # --- Nhóm 2: Lỗi hệ thống — sleep + backoff, KHÔNG tăng attempt ---
+        if error_type in ("rate_limit", "network_error") or raw_response is None:
+            system_retry_count += 1
+            if system_retry_count > SYSTEM_RETRY_MAX:
+                logger.warning(
+                    f"⚠️ [Phase A] Vượt trần system_retry ({SYSTEM_RETRY_MAX}) — dừng."
+                )
+                break
+
+            # Check time budget TRƯỚC khi sleep (tránh treo hàng phút)
+            if budget is not None and budget.is_time_budget_exhausted():
+                logger.warning("⚠️ [Phase A] Time budget cạn trong khi chờ retry — dừng.")
+                break
+
+            # Backoff lũy tiến: 5s → 10s → 20s → 30s → 30s (trần 30s)
+            sleep_sec = min(5 * (2 ** (system_retry_count - 1)), 30)
+            logger.info(
+                f"⏳ [Phase A] Lỗi hệ thống [{error_type}] lần {system_retry_count} "
+                f"— sleep {sleep_sec}s trước khi retry..."
+            )
+            time.sleep(sleep_sec)
+            continue  # KHÔNG tăng attempt, KHÔNG hạ temperature
+
+        # --- Nhóm 3: raw_response có nội dung, tiếp tục xử lý bên dưới ---
 
         try:
             cleaned = _strip_markdown_fence(raw_response)
@@ -266,9 +369,11 @@ def phase_b_gap_filling(
         ensure_ascii=False,
     )
 
-    raw_response = _call_gemini(system_prompt, user_content, temperature=0.2, budget=budget)
+    raw_response, error_type = _call_gemini(system_prompt, user_content, temperature=0.2, budget=budget)
     if raw_response is None:
-        if budget is not None and budget.is_gemini_budget_exhausted() and obs:
+        if error_type == "budget_exhausted" and obs:
+            obs.budget_exhausted(resource="gemini", agent="summarizer")
+        elif budget is not None and budget.is_gemini_budget_exhausted() and obs:
             obs.budget_exhausted(resource="gemini", agent="summarizer")
         return None, False
 
@@ -339,6 +444,7 @@ def run_summarizer(
     scraped_doc: dict,
     budget: "BudgetManager | None" = None,
     obs: "PipelineLogger | None" = None,
+    blackbook: dict | None = None,
 ) -> dict:
     """
     Returns: {"visual_blueprint": dict|None, "schema_record": dict|None,
@@ -355,6 +461,7 @@ def run_summarizer(
         target_form_field,
         budget=budget,
         obs=obs,
+        blackbook=blackbook,
     )
 
     if not phase_a_ok:

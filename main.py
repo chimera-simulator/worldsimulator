@@ -542,7 +542,7 @@ async def run_pipeline_once(cfg=None) -> dict:
         total_tokens = 0
         for doc in scraped_docs:
             try:
-                combined = run_summarizer(doc, budget=budget, obs=obs)
+                combined = run_summarizer(doc, budget=budget, obs=obs, blackbook=blackbook)
                 combined_outputs.append(combined)
                 total_tokens += combined.get("_tokens_used", 0)
             except Exception as e:
