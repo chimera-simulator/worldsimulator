@@ -19,8 +19,10 @@ requirements.txt.
 """
 from __future__ import annotations
 
+import asyncio
 import copy
 import unittest
+import unittest.mock
 
 import config
 
@@ -274,6 +276,138 @@ class TestPlanetRotationEngine(unittest.TestCase):
         # Cửa sổ #2 (chu kỳ pipeline #2, riêng biệt) reject.
         main._handle_planet_gate_result(blackbook, gate_result, gate_report, "PLANET_TEST_05", config)
         self.assertEqual(blackbook["planet_rotation"]["in_progress"]["retry_count"], 2)
+
+
+@unittest.skipIf(main is None, f"main.py không import được trong môi trường này: {_MAIN_IMPORT_ERROR}")
+class TestT2_5PlanetGatePipelineIntegration(unittest.TestCase):
+    """[CODER 3B — SPEC_ADDENDUM_2_7 mục 3.4] Test tích hợp
+    run_pipeline_once() với block T2.5 (Planet-Scoped Aggregate Gate) mới
+    chèn vào giữa T2 và Summarizer.
+
+    Toàn bộ agent (T0/T1/T2/T2.5/Summarizer/Mongo) đều mock — chỉ verify
+    hành vi orchestration của main.py: (a) T2.5 reject → dừng sớm, không
+    gọi Summarizer; (b) retry_count cộng dồn CHUNG 1 bộ đếm giữa Gate 5 và
+    T2.5, bất kể nguồn reject nào.
+    """
+
+    def _blackbook_with_retry_pending(self, working_planet_id="PLANET_T2_5_TEST", retry_count=0):
+        blackbook = {"keywords": {}, "scrape_state": {}, "version": 1}
+        rotation = main._get_current_planet_archetype(blackbook)
+        rotation["in_progress"] = {
+            "working_planet_id": working_planet_id,
+            "archetype_id": config.PLANET_TYPE_CATALOG[0],
+            "started_at": "2026-07-14T00:00:00Z",
+            "status": "retry_pending",
+            "retry_count": retry_count,
+            "fields_filled": [],
+            "fields_pending": ["form_1_planet_foundation.planet_identity.terrain_patterns"],
+        }
+        return blackbook
+
+    def _patch_common(self, blackbook, gate_report):
+        """Patch toàn bộ agent T0->Summarizer, giữ is_retry_pending=True để
+        bỏ qua nhánh KB-full-check (không liên quan phạm vi 3B)."""
+        patches = [
+            unittest.mock.patch.object(main, "load_blackbook", return_value=blackbook),
+            unittest.mock.patch.object(main, "save_blackbook", return_value=None),
+            unittest.mock.patch.object(
+                main, "run_search_pipeline",
+                new=unittest.mock.AsyncMock(return_value=[{"url": "http://x.test"}]),
+            ),
+            unittest.mock.patch.object(
+                main, "classify_and_rank",
+                return_value=[{"url": "http://x.test", "rank": 1}],
+            ),
+            unittest.mock.patch.object(
+                main, "run_scrape_pipeline",
+                new=unittest.mock.AsyncMock(return_value=[{"url": "http://x.test", "raw_text": "..."}]),
+            ),
+            unittest.mock.patch.object(
+                main, "run_planet_gate",
+                return_value=([{"url": "http://x.test", "raw_text": "..."}], gate_report),
+            ),
+            unittest.mock.patch.object(main, "run_summarizer"),
+        ]
+        return patches
+
+    def _run_with_patches(self, patches):
+        started = [p.start() for p in patches]
+        try:
+            result = asyncio.run(main.run_pipeline_once())
+        finally:
+            for p in patches:
+                p.stop()
+        return result, started
+
+    def test_case_a_t2_5_reject_stops_before_summarizer(self):
+        """Case mới A — run_planet_gate trả send_to_t3=False: chu kỳ phải
+        dừng sớm với errors=["planet_gate_insufficient_data"], và
+        run_summarizer KHÔNG được gọi (call count = 0)."""
+        blackbook = self._blackbook_with_retry_pending(retry_count=0)
+        gate_report = {
+            "send_to_t3": False,
+            "retry_triggered": True,
+            "insufficient_fields": ["form_1_planet_foundation.planet_identity.terrain_patterns"],
+        }
+        patches = self._patch_common(blackbook, gate_report)
+        result, started = self._run_with_patches(patches)
+
+        summarizer_mock = started[6]
+        self.assertEqual(result["errors"], ["planet_gate_insufficient_data"])
+        self.assertEqual(summarizer_mock.call_count, 0)
+        self.assertEqual(
+            blackbook["planet_rotation"]["in_progress"]["status"], "retry_pending",
+        )
+        self.assertEqual(
+            blackbook["planet_rotation"]["in_progress"]["retry_count"], 1,
+        )
+
+    def test_case_b_shared_retry_counter_across_t2_5_and_gate5(self):
+        """Case mới B — reject ở T2.5, rồi reject ở T2.5 lần nữa, rồi reject
+        ở Gate 5 (3 chu kỳ run_pipeline_once() riêng biệt, CÙNG 1 blackbook)
+        → sau tổng 3 lần reject (bất kể gate nào) status phải chuyển
+        "failed_aborted". Xác nhận retry_count là 1 bộ đếm DÙNG CHUNG, không
+        phải 2 bộ đếm tách biệt theo gate."""
+        blackbook = self._blackbook_with_retry_pending(retry_count=0)
+
+        # Chu kỳ #1: reject ở T2.5.
+        gate_report_reject = {
+            "send_to_t3": False,
+            "retry_triggered": True,
+            "insufficient_fields": ["form_1_planet_foundation.planet_identity.terrain_patterns"],
+        }
+        patches = self._patch_common(blackbook, gate_report_reject)
+        result_1, _ = self._run_with_patches(patches)
+        self.assertEqual(result_1["errors"], ["planet_gate_insufficient_data"])
+        self.assertEqual(blackbook["planet_rotation"]["in_progress"]["retry_count"], 1)
+        self.assertEqual(blackbook["planet_rotation"]["in_progress"]["status"], "retry_pending")
+
+        # Chu kỳ #2: reject ở T2.5 lần nữa (retry_count 1 -> 2).
+        patches = self._patch_common(blackbook, gate_report_reject)
+        result_2, _ = self._run_with_patches(patches)
+        self.assertEqual(result_2["errors"], ["planet_gate_insufficient_data"])
+        self.assertEqual(blackbook["planet_rotation"]["in_progress"]["retry_count"], 2)
+        self.assertEqual(blackbook["planet_rotation"]["in_progress"]["status"], "retry_pending")
+
+        # Chu kỳ #3: lần này T2.5 PASS (send_to_t3=True) nhưng Gate 5 reject
+        # ngay sau đó -> _handle_planet_gate_result() gọi
+        # _mark_planet_retry_or_fail() với CÙNG in_progress đang có
+        # retry_count=2 -> cửa sổ reject thứ 3 -> failed_aborted.
+        gate_result_gate5_reject = {
+            "reject_reason": "planet_required_fields_missing",
+            "missing_required_fields": ["form_1_planet_foundation.planet_identity.terrain_patterns"],
+        }
+        main._handle_planet_gate_result(
+            blackbook, gate_result_gate5_reject,
+            {"reject_reason": gate_result_gate5_reject["reject_reason"]},
+            blackbook["planet_rotation"]["in_progress"]["working_planet_id"],
+            config,
+        )
+        self.assertIsNone(blackbook["planet_rotation"]["in_progress"])
+        self.assertEqual(len(blackbook["planet_rotation"]["failed_aborted_log"]), 1)
+        self.assertEqual(
+            blackbook["planet_rotation"]["failed_aborted_log"][0]["retry_count"], 3,
+        )
 
 
 if __name__ == "__main__":
