@@ -1,0 +1,104 @@
+{
+  "visual_id": "__PLACEHOLDER__",
+  "entity_type": "planet_environment",
+  "version": "3.0",
+  "prompt_metadata": {
+    "style_preset": "__PLACEHOLDER__",
+    "quality_tags": "__PLACEHOLDER__",
+    "resolution": "__PLACEHOLDER__",
+    "aspect_ratio": "__PLACEHOLDER__",
+    "seed_lock": true,
+    "base_seed": "__PLACEHOLDER__"
+  },
+  "character_blueprint": {
+    "species_base": "__PLACEHOLDER__",
+    "physical_attributes": {
+      "height": "__PLACEHOLDER__",
+      "build": "__PLACEHOLDER__",
+      "skin": "__PLACEHOLDER__",
+      "distinctive_markings": "__PLACEHOLDER__"
+    },
+    "facial_features": {
+      "eyes": "__PLACEHOLDER__",
+      "face_shape": "__PLACEHOLDER__",
+      "expression": "__PLACEHOLDER__"
+    },
+    "posture_and_stance": "__PLACEHOLDER__"
+  },
+  "clothing_and_gear": {
+    "primary_garments": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "materials": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "colors_and_patterns": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "functional_accessories": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ]
+  },
+  "environment_blueprint": {
+    "setting_type": "__PLACEHOLDER__",
+    "dominant_colors": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "lighting_conditions": "__PLACEHOLDER__",
+    "atmospheric_effects": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "key_landmarks": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ]
+  },
+  "pre_built_prompts": {
+    "full_character": "__PLACEHOLDER__",
+    "negative_prompt": "__PLACEHOLDER__"
+  },
+  "consistency_lock": {
+    "locked": false,
+    "locked_fields": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "variable_fields": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ]
+  },
+  "validation_rules": {
+    "required_fields": [
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__",
+      "__PLACEHOLDER__"
+    ],
+    "min_prompt_length": 150,
+    "max_prompt_length": 700,
+    "forbidden_combinations": []
+  },
+  "metadata": {
+    "created_at": "__PLACEHOLDER__",
+    "last_updated": "__PLACEHOLDER__",
+    "gap_filling_status": {
+      "biology_completed": false,
+      "culture_completed": false,
+      "pending_fields": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ]
+    }
+  }
+}
+
