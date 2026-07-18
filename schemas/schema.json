@@ -1,0 +1,157 @@
+{
+  "schema_version": "2.0",
+  "document_type": "worldbuilding_design_pattern",
+  "form_1_planet_foundation": {
+    "planet_identity": {
+      "planet_type": "__PLACEHOLDER__",
+      "core_material": "__PLACEHOLDER__",
+      "physical_appearance": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "terrain_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "climate_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "energy_sources": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "natural_resources": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "planetary_hazards": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "planetary_phenomena": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ]
+    },
+    "ecosystem_foundation": {
+      "dominant_ecosystem": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "dominant_life_material": "__PLACEHOLDER__",
+      "food_chain_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "ecological_cycles": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "environmental_adaptations": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ]
+    }
+  },
+  "form_2_civilization_layer": {
+    "biology_and_behavior": {
+      "species_morphology": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "species_behavior": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ]
+    },
+    "society_and_infrastructure": {
+      "architecture_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "transportation_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "technology_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "government_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "economic_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "military_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ]
+    },
+    "culture_and_history": {
+      "religion_and_belief": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "cultural_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "language_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "art_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "daily_life_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "historical_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ],
+      "diplomatic_patterns": [
+        "__PLACEHOLDER__",
+        "__PLACEHOLDER__"
+      ]
+    }
+  },
+  "provenance_and_metadata": {
+    "target_form_field": "external_chatbot_ingest",
+    "search_strategy_used": "manual_copy_paste",
+    "extracted_from_domain": "n/a",
+    "ip_filter_status": "unverified",
+    "original_ip_detected": [],
+    "quality_gate_passed": false,
+    "timestamp": "__PLACEHOLDER__"
+  }
+}
+
