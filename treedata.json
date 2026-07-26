@@ -1,0 +1,607 @@
+TreeVisual Coordinate System v5.0
+(Rèn qua 5 vòng Reverse Engineering — Normalization Build V3)
+Scene
+|
+|-- Cosmology_Worldbuilding
+|    |-- Universe_Type
+|    |-- Multiverse_Structure
+|    |-- Dimension_Count
+|    |-- Reality_Layer
+|    |-- Physics_Law
+|    |    |-- Gravity_Type
+|    |    |-- Time_Flow_Rate
+|    |    |-- Space_Dimension
+|    |    |-- Energy_Source_Primary
+|    |    |-- Thermodynamic_Rule
+|    |    |-- Causality_Type
+|    |-- Magic_System
+|    |    |-- Magic_Type
+|    |    |-- Mana_Source
+|    |    |-- Casting_Method
+|    |    |-- Spell_Visual
+|    |    |-- Cost_Consequence
+|    |    |-- Limitation_Rule
+|    |-- Civilization
+|    |    |-- Society_Type
+|    |    |-- Tech_Level
+|    |    |-- Culture
+|    |    |-- Religion_Belief
+|    |    |-- Language_Script
+|    |    |-- Economy_System
+|    |    |-- Political_Structure
+|    |    |-- Architecture_Style
+|    |-- History_Lore
+|    |    |-- Era
+|    |    |-- Epoch
+|    |    |-- Mythic_Event
+|    |    |-- Legend
+|    |    |-- Prophecy
+|    |-- Ecology
+|    |    |-- Biome
+|    |    |-- Food_Web
+|    |    |-- Species_Diversity
+|    |    |-- Evolutionary_Stage
+|    |    |-- Symbiosis_Type
+|
+|-- Subject
+|    |-- Group_Dynamic
+|    |    |-- Group_Size
+|    |    |-- Formation
+|    |    |-- Relationship
+|    |    |-- Hierarchy
+|    |    |-- Interaction_Type
+|    |-- Creature
+|    |    |-- Identity
+|    |    |-- Breed
+|    |    |-- Species_Class
+|    |    |-- Ethnicity_Culture
+|    |    |-- State_Condition
+|    |    |-- Pose_Action
+|    |    |-- Expression
+|    |    |-- Emotion
+|    |    |-- Head
+|    |    |    |-- Skull
+|    |    |    |-- Hair
+|    |    |    |-- Horn
+|    |    |    |-- Crest
+|    |    |    |-- Decoration
+|    |    |    |-- Face
+|    |    |    |-- Forehead
+|    |    |    |-- Eye
+|    |    |    |-- Eyebrow
+|    |    |    |-- Eyelash
+|    |    |    |-- Nose
+|    |    |    |-- Mouth
+|    |    |    |-- Teeth
+|    |    |    |-- Tongue
+|    |    |    |-- Ear
+|    |    |    |-- Beard
+|    |    |    |-- Marking_Scar
+|    |    |    |-- Prosthetic_Implant
+|    |    |-- Neck
+|    |    |-- Torso
+|    |    |    |-- Back
+|    |    |    |-- Shoulder
+|    |    |    |-- Chest
+|    |    |    |-- Abdomen
+|    |    |    |-- Hip
+|    |    |    |-- Marking_Tattoo
+|    |    |-- Arm
+|    |    |    |-- Hand
+|    |    |    |-- Finger
+|    |    |    |-- Gesture
+|    |    |-- Leg
+|    |    |    |-- Foot
+|    |    |    |-- Toe
+|    |    |    |-- Gait
+|    |    |-- Tail
+|    |    |-- Wing
+|    |    |    |-- Wing_Type
+|    |    |    |-- Wing_State
+|    |    |-- Fin
+|    |    |-- Shell
+|    |    |-- Spike
+|    |    |-- Tentacle
+|    |    |-- Root
+|    |    |-- InternalStructure
+|    |    |-- Aura_Field
+|    |    |-- Size_Scale
+|    |    |-- Mass_Density
+|    |-- Object_Prop
+|    |    |-- Type
+|    |    |-- Material
+|    |    |-- State
+|    |    |-- Function
+|    |    |-- Age_Condition
+|    |    |-- Scale
+|    |-- Clothing
+|    |    |-- Type
+|    |    |-- Material
+|    |    |-- Condition
+|    |    |-- Pattern
+|    |    |-- Footwear
+|    |    |-- EmbeddedLight
+|    |    |-- Cultural_Origin
+|    |-- Armor
+|    |    |-- Type
+|    |    |-- Material
+|    |    |-- Coverage
+|    |    |-- Damage_State
+|    |    |-- Ornament
+|    |-- Equipment
+|    |    |-- Tool
+|    |    |-- Device
+|    |    |-- Gadget
+|    |    |-- Power_Source
+|    |-- Accessory
+|    |    |-- Jewelry
+|    |    |-- Amulet
+|    |    |-- Mask
+|    |    |-- Headwear
+|    |-- Weapon
+|    |    |-- Type
+|    |    |-- Material
+|    |    |-- Enchantment
+|    |    |-- State
+|    |    |-- Energy_Emission
+|    |-- Vehicle
+|    |    |-- Type
+|    |    |-- Propulsion
+|    |    |-- Condition
+|    |    |-- Scale
+|    |    |-- Emission_Trail
+|    |-- Structure_Built
+|    |    |-- Type
+|    |    |-- Material
+|    |    |-- Style
+|    |    |-- Condition
+|    |    |-- Scale
+|    |    |-- Ornament
+|
+|-- Surface
+|    |-- Skin
+|    |-- Fur
+|    |-- Feather
+|    |-- Scale
+|    |-- Bark
+|    |-- Leaf
+|    |-- Moss
+|    |-- Crystal
+|    |-- Rock
+|    |-- Metal
+|    |    |-- Oxidation
+|    |    |-- Reflectivity
+|    |-- Lava
+|    |-- Ice
+|    |    |-- Transparency
+|    |    |-- Fracture_Pattern
+|    |-- Liquid
+|    |    |-- Viscosity
+|    |    |-- Color
+|    |    |-- Reflectivity
+|    |-- Gas
+|    |-- Energy
+|    |    |-- Plasma
+|    |    |-- Arc
+|    |    |-- Field
+|    |-- Translucency
+|    |-- Wetness
+|    |-- Fabric
+|    |-- Wood
+|    |-- Glass
+|    |-- Ceramic
+|    |-- Bone
+|    |-- Flesh
+|    |-- Dust
+|    |-- Sand
+|    |-- Rust
+|    |-- Corrosion
+|    |-- Bioluminescent_Coating
+|
+|-- Environment
+|    |-- TimeOfDay
+|    |-- Season
+|    |-- Era_Temporal
+|    |-- Celestial_Alignment
+|    |-- Terrain
+|    |    |-- Ground
+|    |    |    |-- Texture
+|    |    |    |-- Elevation
+|    |    |    |-- Fracture_Type
+|    |    |-- Water
+|    |    |    |-- Type
+|    |    |    |-- Depth
+|    |    |    |-- Clarity
+|    |    |    |-- Motion
+|    |    |-- Vegetation
+|    |    |    |-- Flora
+|    |    |    |    |-- Density
+|    |    |    |    |-- Type
+|    |    |    |    |-- State
+|    |    |    |-- Fungi
+|    |    |    |    |-- Type
+|    |    |    |    |-- Glow
+|    |    |    |-- Coral
+|    |    |    |-- Alien_Flora
+|    |    |-- Mountain
+|    |    |    |-- Type
+|    |    |    |-- Height
+|    |    |    |-- Snow_Cap
+|    |    |-- Cave
+|    |    |    |-- Depth
+|    |    |    |-- Formation
+|    |    |    |-- Contents
+|    |    |-- Depth_Zone
+|    |    |-- Desert
+|    |    |-- Tundra
+|    |    |-- Swamp
+|    |    |-- Volcano
+|    |    |-- Canyon
+|    |    |-- Plain
+|    |    |-- Floating_Island
+|    |    |-- Abyssal_Trench
+|    |-- Sky
+|    |    |-- CelestialBody
+|    |    |    |-- Sun
+|    |    |    |-- Moon
+|    |    |    |-- Planet
+|    |    |    |-- Star
+|    |    |    |-- Nebula
+|    |    |    |-- Galaxy
+|    |    |    |-- Constellation
+|    |    |-- Sky_Color
+|    |    |-- Sky_Phenomena
+|    |    |    |-- Aurora
+|    |    |    |-- Ring_System
+|    |    |    |-- Binary_Sunset
+|    |    |    |-- Eclipse
+|    |    |-- Cloud_Type
+|    |-- Structure
+|    |    |-- Architecture
+|    |    |    |-- Style
+|    |    |    |-- Era
+|    |    |    |-- Condition
+|    |    |    |-- Scale
+|    |    |-- Signage
+|    |    |    |-- Type
+|    |    |    |-- Script
+|    |    |    |-- Illumination
+|    |    |-- Monument
+|    |    |-- Ruin
+|    |    |-- Infrastructure
+|    |    |-- Artifact
+|    |-- Medium_Atmosphere
+|    |    |-- Fog
+|    |    |-- Mist
+|    |    |-- Dust
+|    |    |-- Smoke
+|    |    |-- Steam
+|    |    |-- Ash
+|    |    |-- Particle
+|    |    |    |-- Type
+|    |    |    |-- Density
+|    |    |    |-- Motion
+|    |    |    |-- Glow
+|    |    |-- Cloud
+|    |    |-- Rain
+|    |    |-- Snow
+|    |    |-- Ember
+|    |    |-- Petal
+|    |    |-- Spore
+|    |    |-- Energy_Mote
+|    |-- Anomaly_Zone
+|    |    |-- Spatial_Rift
+|    |    |-- Gravity_Well
+|    |    |-- Time_Distortion_Field
+|    |    |-- Reality_Fracture
+|    |    |-- Dimensional_Breach
+|    |    |-- Void_Zone
+|    |    |-- Mana_Storm
+|    |    |-- Radiation_Field
+|
+|-- Lighting
+|    |-- MainLight
+|    |    |-- Type
+|    |    |-- Color
+|    |    |-- Intensity
+|    |    |-- Direction
+|    |    |-- Hardness
+|    |-- RimLight
+|    |    |-- Color
+|    |    |-- Intensity
+|    |-- AmbientLight
+|    |    |-- Color
+|    |    |-- Intensity
+|    |-- FillLight
+|    |-- BackLight
+|    |-- Shadow
+|    |    |-- Type
+|    |    |-- Density
+|    |    |-- Color
+|    |-- Reflection
+|    |-- Refraction
+|    |-- Emission
+|    |-- VolumetricLight
+|    |    |-- God_Rays
+|    |    |-- Light_Shaft
+|    |    |-- Dust_Illumination
+|    |-- Neon
+|    |-- Bioluminescent_Light
+|    |-- Magical_Light
+|    |-- Caustics
+|    |-- Flare
+|    |-- Lens_Flare
+|    |-- Global_Illumination
+|    |-- Color_Temperature
+|
+|-- Weather_Phenomena
+|    |-- Rain
+|    |    |-- Intensity
+|    |    |-- Type
+|    |-- Snow
+|    |    |-- Intensity
+|    |    |-- Flake_Size
+|    |-- Storm
+|    |    |-- Type
+|    |    |-- Intensity
+|    |-- Wind
+|    |    |-- Speed
+|    |    |-- Direction
+|    |    |-- Effect
+|    |-- Lightning
+|    |    |-- Type
+|    |    |-- Color
+|    |    |-- Frequency
+|    |-- Sandstorm
+|    |-- Volcanic
+|    |-- Hail
+|    |-- Meteor_Shower
+|    |-- Mana_Storm
+|    |-- Energy_Storm
+|    |-- Intensity
+|
+|-- Camera
+|    |-- Distance
+|    |    |-- Extreme_Close_Up
+|    |    |-- Close_Up
+|    |    |-- Medium_Close_Up
+|    |    |-- Medium
+|    |    |-- Medium_Full
+|    |    |-- Full
+|    |    |-- Wide
+|    |    |-- Extreme_Wide
+|    |    |-- Establishing
+|    |    |-- Aerial
+|    |    |-- Orbital
+|    |    |-- Cosmic
+|    |-- Angle
+|    |    |-- Eye_Level
+|    |    |-- Low_Angle
+|    |    |-- High_Angle
+|    |    |-- Birds_Eye
+|    |    |-- Worms_Eye
+|    |    |-- Dutch_Angle
+|    |    |-- Over_Shoulder_Angle
+|    |    |-- Overhead
+|    |-- Shot_Type
+|    |    |-- Establishing_Shot
+|    |    |-- Master_Shot
+|    |    |-- Two_Shot
+|    |    |-- Over_Shoulder
+|    |    |-- Point_Of_View
+|    |    |-- Reverse_Shot
+|    |    |-- Insert_Shot
+|    |    |-- Cutaway
+|    |    |-- Reaction_Shot
+|    |    |-- Panorama
+|    |-- Movement
+|    |    |-- Static
+|    |    |-- Pan
+|    |    |    |-- Direction
+|    |    |    |-- Speed
+|    |    |-- Tilt
+|    |    |    |-- Direction
+|    |    |    |-- Speed
+|    |    |-- Dolly
+|    |    |    |-- In
+|    |    |    |-- Out
+|    |    |-- Truck
+|    |    |    |-- Left
+|    |    |    |-- Right
+|    |    |-- Pedestal
+|    |    |    |-- Up
+|    |    |    |-- Down
+|    |    |-- Arc
+|    |    |-- Orbit
+|    |    |    |-- Radius
+|    |    |    |-- Speed
+|    |    |    |-- Direction
+|    |    |-- Crane
+|    |    |-- Boom
+|    |    |-- Steadicam
+|    |    |-- Handheld
+|    |    |-- Aerial
+|    |    |-- Drone
+|    |    |    |-- Altitude
+|    |    |    |-- Trajectory
+|    |    |-- Satellite
+|    |    |-- Tracking_Mode
+|    |    |    |-- Follow_Behind
+|    |    |    |-- Follow_Side
+|    |    |    |-- Lead_Front
+|    |    |    |-- Orbit_Subject
+|    |    |    |-- Push_In
+|    |    |    |-- Pull_Out
+|    |-- Third_Person_Params
+|    |    |-- Follow_Distance
+|    |    |-- Follow_Height
+|    |    |-- Orbit_Radius
+|    |    |-- Orbit_Speed
+|    |    |-- Camera_Smoothing
+|    |    |-- Subject_Framing
+|    |    |-- Lead_Space
+|    |-- Lens
+|    |    |-- Focal_Length
+|    |    |    |-- Ultra_Wide
+|    |    |    |-- Wide
+|    |    |    |-- Standard
+|    |    |    |-- Telephoto
+|    |    |    |-- Super_Telephoto
+|    |    |    |-- Macro
+|    |    |-- Aperture
+|    |    |-- Lens_Type
+|    |    |    |-- Prime
+|    |    |    |-- Zoom
+|    |    |    |-- Anamorphic
+|    |    |    |-- Fisheye
+|    |    |    |-- Tilt_Shift
+|    |-- Focus
+|    |    |-- Subject
+|    |    |-- Foreground
+|    |    |-- Midground
+|    |    |-- Background
+|    |    |-- Rack_Focus
+|    |-- Framing
+|    |    |-- Rule_Of_Thirds
+|    |    |-- Golden_Ratio
+|    |    |-- Centered
+|    |    |-- Symmetrical
+|    |    |-- Asymmetrical
+|    |    |-- Leading_Lines
+|    |    |-- Frame_Within_Frame
+|    |    |-- Negative_Space
+|    |-- Motion
+|    |    |-- Motion_Blur
+|    |    |-- Freeze_Frame
+|    |    |-- Speed_Ramp
+|    |    |-- Slow_Motion
+|    |    |-- Time_Lapse
+|    |-- Scale_Perspective
+|    |    |-- Micro
+|    |    |-- Human
+|    |    |-- Architectural
+|    |    |-- Landscape
+|    |    |-- Continental
+|    |    |-- Planetary
+|    |    |-- Stellar
+|    |    |-- Galactic
+|    |    |-- Cosmic
+|    |-- DepthOfField
+|    |    |-- Shallow
+|    |    |-- Medium
+|    |    |-- Deep
+|    |    |-- Tilt_Shift_Miniature
+|    |-- Depth
+|    |    |-- Foreground
+|    |    |-- Midground
+|    |    |-- Background
+|    |-- Composition
+|    |    |-- Balance
+|    |    |-- Contrast
+|    |    |-- Rhythm
+|    |    |-- Emphasis
+|    |    |-- Unity
+|
+|-- Visual_Effect
+|    |-- Glow
+|    |-- Bloom
+|    |-- Spark
+|    |-- Fire
+|    |    |-- Type
+|    |    |-- Color
+|    |    |-- Intensity
+|    |-- Splash_Spill
+|    |-- Explosion
+|    |    |-- Type
+|    |    |-- Scale
+|    |    |-- Debris
+|    |-- Aura
+|    |    |-- Color
+|    |    |-- Intensity
+|    |    |-- Shape
+|    |-- Magic
+|    |    |-- Spell_Form
+|    |    |-- Rune
+|    |    |-- Circle
+|    |    |-- Sigil
+|    |    |-- Energy_Strand
+|    |-- MotionBlur
+|    |-- Bioluminescence
+|    |-- Hologram
+|    |-- Distortion
+|    |-- Chromatic_Aberration
+|    |-- Film_Grain
+|    |-- Vignette
+|    |-- Lens_Distortion
+|    |-- Bokeh
+|    |-- Light_Leak
+|    |-- Energy_Wave
+|    |-- Portal_Effect
+|    |-- Teleportation_Trail
+|    |-- Shatter_Fracture
+|    |-- Dissolve_Particle
+|
+|-- Narrative_Emotion
+|    |-- Mood
+|    |-- Tone
+|    |-- Atmosphere
+|    |-- Theme
+|    |-- Symbolism
+|    |-- Tension_Level
+|    |-- Pacing
+|    |-- Emotional_Beat
+|
+|-- Render
+|    |-- Style
+|    |    |-- Photorealistic
+|    |    |-- Cinematic
+|    |    |-- Concept_Art
+|    |    |-- Digital_Painting
+|    |    |-- Anime
+|    |    |-- Manga
+|    |    |-- Comic
+|    |    |-- Watercolor
+|    |    |-- Oil_Painting
+|    |    |-- Pixel_Art
+|    |    |-- Low_Poly
+|    |    |-- Voxel
+|    |    |-- Claymation
+|    |    |-- Stop_Motion
+|    |    |-- Retro
+|    |    |-- Surrealist
+|    |    |-- Hyperrealism
+|    |-- Quality
+|    |    |-- Resolution
+|    |    |-- Fidelity
+|    |-- Detail
+|    |    |-- Micro_Detail
+|    |    |-- Surface_Detail
+|    |    |-- Intricacy
+|    |-- ColorPalette
+|    |    |-- Primary
+|    |    |-- Secondary
+|    |    |-- Accent
+|    |    |-- Harmony_Type
+|    |    |-- Temperature
+|    |-- Contrast
+|    |    |-- Level
+|    |    |-- Type
+|    |-- Saturation
+|    |    |-- Level
+|    |    |-- Selective
+|    |-- Texture
+|    |    |-- Sharpness
+|    |    |-- Grain
+|    |    |-- Noise
+|    |-- Rendering_Engine
+|    |    |-- Unreal_Engine_5
+|    |    |-- Unity
+|    |    |-- Octane
+|    |    |-- V-Ray
+|    |    |-- Arnold
+|    |    |-- Cycles
+|    |    |-- Redshift
+|    |-- Aspect_Ratio
+|    |-- Film_Stock
+|    |-- Color_Grading
+|    |-- Post_Processing
