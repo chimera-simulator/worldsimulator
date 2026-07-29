@@ -1,36 +1,90 @@
 TREE-DATA SKILLS
-Version 1.0
-
-TREE-DATA SKILLS
 │
 ├── IDENTITY
 │   │
+│   ├── Name
+│   │   └── TreeData Skills
+│   │
+│   ├── Type
+│   │   └── Human + Chatbot Operational Guide
+│   │
 │   ├── Purpose
-│   │   └── Build reliable, reusable and complete JSONData.
+│   │   └── Build or improve reliable, reusable and progressively complete JSONData.
 │   │
 │   ├── Mission
-│   │   └── Transform knowledge into JSONData.
+│   │   └── Guide Human and Chatbot to collaboratively transform knowledge into high-quality JSONData.
 │   │
-│   ├── Input
-│   │   └── Any source containing knowledge.
-│   │
-│   ├── Output
-│   │   └── JSONData.
+│   ├── Final Output
+│   │   └── JSONData
 │   │
 │   └── Stop Condition
-│       └── This Skills ends immediately after JSONData is completed.
+│       └── This Skills ends immediately after JSONData is accepted.
+│
+├── ONE SENTENCE
+│   │
+│   └── TreeData Skills exists only to build or improve JSONData.
+│       Everything outside JSONData belongs to other Skills.
+│
+├── BOUNDARY
+│   │
+│   ├── Starts With
+│   │   ├── Task
+│   │   ├── Requirements
+│   │   ├── Available Materials
+│   │   └── Existing JSONData (Optional)
+│   │
+│   ├── Ends With
+│   │   └── JSONData
+│   │
+│   └── Next Skills
+│       └── TreeSpec Skills
+│
+├── WORKING MODEL
+│   │
+│   ├── Participants
+│   │   │
+│   │   ├── Human
+│   │   │   ├── Define objectives.
+│   │   │   ├── Define requirements.
+│   │   │   ├── Provide materials.
+│   │   │   ├── Make decisions.
+│   │   │   ├── Review JSONData.
+│   │   │   └── Approve publication.
+│   │   │
+│   │   └── Chatbot
+│   │       ├── Analyze materials.
+│   │       ├── Organize knowledge.
+│   │       ├── Detect inconsistencies.
+│   │       ├── Ask for clarification when required.
+│   │       ├── Build or improve JSONData.
+│   │       ├── Explain reasoning.
+│   │       └── Suggest improvements.
+│   │
+│   ├── Ownership
+│   │   │
+│   │   ├── Human
+│   │   │   └── Owns every final decision.
+│   │   │
+│   │   ├── Chatbot
+│   │   │   └── Owns no final decision.
+│   │   │
+│   │   └── JSONData
+│   │       └── Becomes official only after Human approval.
+│   │
+│   └── Principle
+│       └── Human decides. Chatbot assists.
 │
 ├── RESPONSIBILITY
 │   │
-│   ├── Acquire Knowledge
-│   ├── Verify Knowledge
-│   ├── Organize Knowledge
-│   ├── Complete Knowledge
-│   ├── Repair Knowledge
-│   ├── Merge Knowledge
-│   ├── Validate Knowledge
-│   ├── Maintain Knowledge
-│   └── Generate JSONData
+│   ├── Build JSONData.
+│   ├── Improve JSONData.
+│   ├── Repair JSONData.
+│   ├── Complete JSONData.
+│   ├── Merge JSONData.
+│   ├── Maintain JSONData.
+│   ├── Validate JSONData.
+│   ├── Version JSONData.
+│   └── Publish JSONData.
 │
 ├── NON GOALS
 │   │
@@ -41,14 +95,17 @@ TREE-DATA SKILLS
 │   ├── NOT generate prompts.
 │   ├── NOT generate applications.
 │   ├── NOT generate websites.
-│   ├── NOT create final products.
+│   ├── NOT generate reports as final products.
+│   ├── NOT transform JSONData into products.
 │   └── Product generation belongs to TreeSpec Skills.
 │
 ├── INPUT
 │   │
+│   ├── Task
+│   ├── Requirements
 │   ├── Internet
 │   ├── Books
-│   ├── Papers
+│   ├── Research Papers
 │   ├── Documents
 │   ├── Images
 │   ├── Videos
@@ -62,13 +119,13 @@ TREE-DATA SKILLS
 ├── OUTPUT
 │   │
 │   ├── JSONData(None)
-│   │   └── Minimal structured knowledge.
+│   │   └── Initial structured knowledge.
 │   │
 │   ├── JSONData(Basic)
 │   │   └── Core knowledge completed.
 │   │
 │   └── JSONData(Full)
-│       └── Production-ready JSONData.
+│       └── Production-ready reusable JSONData.
 │
 ├── CORE PHILOSOPHY
 │   │
@@ -76,10 +133,10 @@ TREE-DATA SKILLS
 │   │   └── Facts always have higher priority than generation.
 │   │
 │   ├── Ground Truth First
-│   │   └── Reliable sources are the foundation of every JSONData.
+│   │   └── Reliable evidence is the foundation of JSONData.
 │   │
 │   ├── Knowledge Before Generation
-│   │   └── Build knowledge before creating products.
+│   │   └── Build knowledge before building JSONData.
 │   │
 │   ├── Unknown Is Better Than Wrong
 │   │   └── Preserve uncertainty instead of hallucinating.
@@ -91,12 +148,138 @@ TREE-DATA SKILLS
 │   │   └── JSONData continuously evolves toward completeness.
 │   │
 │   ├── Artifact Driven
-│   │   └── Every task must produce reusable artifacts.
+│   │   └── Every completed task produces reusable JSONData.
 │   │
-│   ├── Human + AI Collaboration
-│   │   └── AI accelerates. Human approves.
+│   ├── Human Validation
+│   │   └── Human approval is mandatory before publication.
 │   │
 │   └── Reusability First
+│       └── JSONData should be reusable by any downstream Skills.
+│
+├── KNOWLEDGE CAPABILITIES
+│   │
+│   ├── Execution Model
+│   │   ├── Capabilities are independent.
+│   │   ├── Execute only required capabilities.
+│   │   ├── No fixed execution order.
+│   │   ├── Repeat capabilities whenever necessary.
+│   │   └── Skip unnecessary capabilities.
+│   │
+│   ├── Acquire
+│   │   └── Collect relevant knowledge.
+│   │
+│   ├── Screen
+│   │   └── Remove irrelevant information.
+│   │
+│   ├── Verify
+│   │   └── Confirm factual correctness.
+│   │
+│   ├── Extract
+│   │   └── Convert information into reusable knowledge units.
+│   │
+│   ├── Normalize
+│   │   └── Standardize representation.
+│   │
+│   ├── Structure
+│   │   └── Organize knowledge into TreeData.
+│   │
+│   ├── Complete
+│   │   └── Fill missing knowledge.
+│   │
+│   ├── Repair
+│   │   └── Correct inaccurate knowledge.
+│   │
+│   ├── Merge
+│   │   └── Combine compatible knowledge.
+│   │
+│   ├── Validate
+│   │   └── Ensure consistency and quality.
+│   │
+│   ├── Export
+│   │   └── Generate JSONData.
+│   │
+│   └── Publish
+│       └── Release approved JSONData.
+│
+├── QUALITY
+│   │
+│   ├── Traceable
+│   │   └── Every knowledge unit has an identifiable origin.
+│   │
+│   ├── Reviewable
+│   │   └── Every modification can be inspected.
+│   │
+│   ├── Reusable
+│   │   └── Compatible with downstream Skills.
+│   │
+│   ├── Expandable
+│   │   └── Future expansion preserves compatibility.
+│   │
+│   ├── Canon Safe
+│   │   └── Canon changes require validation.
+│   │
+│   └── Versioned
+│       └── Every published JSONData has version history.
+│
+├── GENERAL CONTRACT
+│   │
+│   ├── Receive
+│   │   └── Task + Requirements + Materials.
+│   │
+│   ├── Process
+│   │   └── Build or improve JSONData.
+│   │
+│   ├── Return
+│   │   └── JSONData.
+│   │
+│   └── Never return a final product.
+│
+├── HANDOFF
+│   │
+│   ├── Task
+│   │
+│   ├── ↓
+│   │
+│   ├── Human + Chatbot
+│   │
+│   ├── ↓
+│   │
+│   ├── TreeData Skills
+│   │
+│   ├── ↓
+│   │
+│   ├── JSONData
+│   │
+│   ├── ↓
+│   │
+│   ├── TreeSpec Skills
+│   │
+│   └── ↓
+│
+│       Products
+│
+├── GENERAL GUARANTEE
+│   │
+│   ├── Reliable JSONData
+│   ├── Traceable JSONData
+│   ├── Reviewable JSONData
+│   ├── Reusable JSONData
+│   ├── Expandable JSONData
+│   ├── Canon-safe JSONData
+│   ├── Versioned JSONData
+│   └── TreeSpec-ready JSONData
+│
+└── CHILDREN
+    │
+    ├── Entity JSONData Skills
+    ├── World JSONData Skills
+    ├── Visual JSONData Skills
+    ├── Knowledge JSONData Skills
+    ├── Scientific JSONData Skills
+    ├── Historical JSONData Skills
+    ├── Technical JSONData Skills
+    ├── Cultural JSONData Skills
+    └── Any Domain-specific JSONData Skills│   └── Reusability First
 │       └── Every JSONData should be reusable by downstream Skills.
 │
 ├── CORE CAPABILITIES
