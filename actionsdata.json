@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "description": "Action Data Skeleton (Video/Animation Runkeys). Tập trung hoàn toàn vào trạng thái động (dynamics) và động từ (verbs) để định hướng chuyển động cho Visual LLMs.",
+    "version": "1.0",
+    "note": "Cấu trúc tinh gọn. Yêu cầu AI ở Bước 3 chỉ điền các runkey chuyển động ngắn gọn (Ví dụ: 'đang chạy', 'núi lửa phun trào', 'mưa rơi nặng hạt')."
+  },
+  "scenes": {
+    "Action_Master_Template": {
+      "description": "",
+      "data": {
+        "Action.Subject.Primary_Movement": null,
+        "Action.Subject.Secondary_Action": null,
+        "Action.Subject.Facial_Emotion_Transition": null,
+        "Action.Subject.Interaction_With_Environment": null,
+        "Action.Group.Crowd_Dynamics": null,
+        "Action.Environment.Geological_Activity": null,
+        "Action.Environment.Water_Fluid_Motion": null,
+        "Action.Environment.Vegetation_Wind_Effect": null,
+        "Action.Weather.Atmospheric_Motion": null,
+        "Action.Weather.Storm_Lightning_Activity": null,
+        "Action.Visual_Effect.Particle_Behavior": null,
+        "Action.Visual_Effect.Light_Emission_Change": null,
+        "Action.Camera.Cinematic_Movement": null,
+        "Action.Camera.Speed_Ramp": null
+      }
+    }
+  }
+}
+
