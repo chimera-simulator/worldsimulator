@@ -1,49 +1,3 @@
-TreeVisual Coordinate System v6.0 (GenAI Optimized Build)
-(Lược bỏ kỹ thuật Camera phần cứng - Tập trung 100% vào Worldbuilding & Subject)
-
-Scene
-|
-|-- Cosmology_Worldbuilding
-|    |-- Universe_Type
-|    |-- Multiverse_Structure
-|    |-- Dimension_Count
-|    |-- Reality_Layer
-|    |-- Physics_Law
-|    |    |-- Gravity_Type
-|    |    |-- Time_Flow_Rate
-|    |    |-- Space_Dimension
-|    |    |-- Energy_Source_Primary
-|    |    |-- Thermodynamic_Rule
-|    |    |-- Causality_Type
-|    |-- Magic_System
-|    |    |-- Magic_Type
-|    |    |-- Mana_Source
-|    |    |-- Casting_Method
-|    |    |-- Spell_Visual
-|    |    |-- Cost_Consequence
-|    |    |-- Limitation_Rule
-|    |-- Civilization
-|    |    |-- Society_Type
-|    |    |-- Tech_Level
-|    |    |-- Culture
-|    |    |-- Religion_Belief
-|    |    |-- Language_Script
-|    |    |-- Economy_System
-|    |    |-- Political_Structure
-|    |    |-- Architecture_Style
-|    |-- History_Lore
-|    |    |-- Era
-|    |    |-- Epoch
-|    |    |-- Mythic_Event
-|    |    |-- Legend
-|    |    |-- Prophecy
-|    |-- Ecology
-|    |    |-- Biome
-|    |    |-- Food_Web
-|    |    |-- Species_Diversity
-|    |    |-- Evolutionary_Stage
-|    |    |-- Symbiosis_Type
-|
 |-- Subject
 |    |-- Group_Dynamic
 |    |    |-- Group_Size
@@ -51,6 +5,7 @@ Scene
 |    |    |-- Relationship
 |    |    |-- Hierarchy
 |    |    |-- Interaction_Type
+|
 |    |-- Creature
 |    |    |-- Identity
 |    |    |-- Breed
@@ -60,54 +15,147 @@ Scene
 |    |    |-- Pose_Action
 |    |    |-- Expression
 |    |    |-- Emotion
+|
 |    |    |-- Head
 |    |    |    |-- Skull
+|    |    |    |    |-- Shape
+|    |    |    |    |-- Width
+|    |    |    |    |-- Height
+|    |    |    |    |-- Depth
+|    |    |    |
 |    |    |    |-- Hair
+|    |    |    |    |-- Style
+|    |    |    |    |-- Length
+|    |    |    |    |-- Density
+|    |    |    |    |-- Flow_Direction
+|    |    |    |
 |    |    |    |-- Horn
+|    |    |    |    |-- Attach_Position
+|    |    |    |    |-- Growth_Direction
+|    |    |    |    |-- Curvature
+|    |    |    |    |-- Length
+|    |    |    |    |-- Thickness
+|    |    |    |    |-- Symmetry
+|    |    |    |
 |    |    |    |-- Crest
+|    |    |    |    |-- Attach_Position
+|    |    |    |    |-- Growth_Direction
+|    |    |    |    |-- Shape
+|    |    |    |    |-- Length
+|    |    |    |    |-- Thickness
+|    |    |    |
 |    |    |    |-- Decoration
+|    |    |    |
 |    |    |    |-- Face
+|    |    |    |    |-- Face_Shape
+|    |    |    |    |-- Face_Depth
+|    |    |    |
 |    |    |    |-- Forehead
+|    |    |    |
 |    |    |    |-- Eye
+|    |    |    |    |-- Eye_Shape
+|    |    |    |    |-- Eye_Size
+|    |    |    |    |-- Eye_Spacing
+|    |    |    |    |-- Eye_Depth
+|    |    |    |
 |    |    |    |-- Eyebrow
 |    |    |    |-- Eyelash
+|    |    |    |
 |    |    |    |-- Nose
+|    |    |    |    |-- Nose_Profile
+|    |    |    |    |-- Nose_Length
+|    |    |    |    |-- Nose_Width
+|    |    |    |
 |    |    |    |-- Mouth
+|    |    |    |    |-- Mouth_Width
+|    |    |    |    |-- Lip_Profile
+|    |    |    |
 |    |    |    |-- Teeth
 |    |    |    |-- Tongue
+|    |    |    |
 |    |    |    |-- Ear
+|    |    |    |    |-- Attach_Position
+|    |    |    |    |-- Ear_Direction
+|    |    |    |    |-- Ear_Length
+|    |    |    |
 |    |    |    |-- Beard
 |    |    |    |-- Marking_Scar
 |    |    |    |-- Prosthetic_Implant
+|
 |    |    |-- Neck
+|    |    |    |-- Length
+|    |    |    |-- Thickness
+|
 |    |    |-- Torso
 |    |    |    |-- Back
 |    |    |    |-- Shoulder
+|    |    |    |    |-- Width
+|    |    |    |    |-- Slope
+|    |    |    |
 |    |    |    |-- Chest
+|    |    |    |    |-- Width
+|    |    |    |    |-- Depth
+|    |    |    |
 |    |    |    |-- Abdomen
 |    |    |    |-- Hip
+|    |    |    |    |-- Width
 |    |    |    |-- Marking_Tattoo
+|
 |    |    |-- Arm
+|    |    |    |-- Length
+|    |    |    |-- Thickness
+|    |    |    |-- Attach_Position
 |    |    |    |-- Hand
 |    |    |    |-- Finger
 |    |    |    |-- Gesture
+|
 |    |    |-- Leg
+|    |    |    |-- Length
+|    |    |    |-- Thickness
+|    |    |    |-- Attach_Position
 |    |    |    |-- Foot
 |    |    |    |-- Toe
 |    |    |    |-- Gait
+|
 |    |    |-- Tail
+|    |    |    |-- Attach_Position
+|    |    |    |-- Growth_Direction
+|    |    |    |-- Length
+|    |    |    |-- Curvature
+|    |    |    |-- Thickness
+|
 |    |    |-- Wing
 |    |    |    |-- Wing_Type
 |    |    |    |-- Wing_State
+|    |    |    |-- Attach_Position
+|    |    |    |-- Wing_Span
+|    |    |    |-- Fold_Direction
+|
 |    |    |-- Fin
+|    |    |    |-- Attach_Position
+|    |    |    |-- Shape
+|
 |    |    |-- Shell
+|    |    |    |-- Coverage
+|    |    |    |-- Thickness
+|
 |    |    |-- Spike
+|    |    |    |-- Attach_Position
+|    |    |    |-- Growth_Direction
+|    |    |    |-- Length
+|
 |    |    |-- Tentacle
+|    |    |    |-- Attach_Position
+|    |    |    |-- Length
+|    |    |    |-- Flexibility
+|
 |    |    |-- Root
 |    |    |-- InternalStructure
 |    |    |-- Aura_Field
 |    |    |-- Size_Scale
 |    |    |-- Mass_Density
+|    |    |-- Body_Proportion
+|    |    |-- Bilateral_Symmetry
 |    |-- Object_Prop
 |    |    |-- Type
 |    |    |-- Material
@@ -115,6 +163,10 @@ Scene
 |    |    |-- Function
 |    |    |-- Age_Condition
 |    |    |-- Scale
+|    |    |-- Shape
+|    |    |-- Proportion
+|    |    |-- Orientation
+|
 |    |-- Clothing
 |    |    |-- Type
 |    |    |-- Material
@@ -123,34 +175,48 @@ Scene
 |    |    |-- Footwear
 |    |    |-- EmbeddedLight
 |    |    |-- Cultural_Origin
+|    |    |-- Fit
+|    |    |-- Layering
+|    |    |-- Coverage
+|
 |    |-- Armor
 |    |    |-- Type
 |    |    |-- Material
 |    |    |-- Coverage
 |    |    |-- Damage_State
 |    |    |-- Ornament
+|    |    |-- Thickness
+|
 |    |-- Equipment
 |    |    |-- Tool
 |    |    |-- Device
 |    |    |-- Gadget
 |    |    |-- Power_Source
+|    |    |-- Carry_Position
+|
 |    |-- Accessory
 |    |    |-- Jewelry
 |    |    |-- Amulet
 |    |    |-- Mask
 |    |    |-- Headwear
+|    |    |-- Attach_Position
+|
 |    |-- Weapon
 |    |    |-- Type
 |    |    |-- Material
 |    |    |-- Enchantment
 |    |    |-- State
 |    |    |-- Energy_Emission
+|    |    |-- Carry_Position
+|
 |    |-- Vehicle
 |    |    |-- Type
 |    |    |-- Propulsion
 |    |    |-- Condition
 |    |    |-- Scale
 |    |    |-- Emission_Trail
+|    |    |-- Orientation
+|
 |    |-- Structure_Built
 |    |    |-- Type
 |    |    |-- Material
@@ -158,36 +224,63 @@ Scene
 |    |    |-- Condition
 |    |    |-- Scale
 |    |    |-- Ornament
+|    |    |-- Layout
 |
 |-- Surface
 |    |-- Skin
+|    |    |-- Thickness
+|    |    |-- Roughness
+|    |    |-- Elasticity
+|
 |    |-- Fur
+|    |    |-- Length
+|    |    |-- Density
+|    |    |-- Growth_Direction
+|
 |    |-- Feather
+|    |    |-- Length
+|    |    |-- Density
+|    |    |-- Arrangement
+|
 |    |-- Scale
+|    |    |-- Size
+|    |    |-- Layering
+|    |    |-- Pattern
+|
 |    |-- Bark
 |    |-- Leaf
 |    |-- Moss
 |    |-- Crystal
+|    |    |-- Growth_Direction
+|    |    |-- Facet_Shape
+|
 |    |-- Rock
 |    |-- Metal
 |    |    |-- Oxidation
 |    |    |-- Reflectivity
+|
 |    |-- Lava
 |    |-- Ice
 |    |    |-- Transparency
 |    |    |-- Fracture_Pattern
+|
 |    |-- Liquid
 |    |    |-- Viscosity
 |    |    |-- Color
 |    |    |-- Reflectivity
+|
 |    |-- Gas
 |    |-- Energy
 |    |    |-- Plasma
 |    |    |-- Arc
 |    |    |-- Field
+|
 |    |-- Translucency
 |    |-- Wetness
 |    |-- Fabric
+|    |    |-- Weave_Pattern
+|    |    |-- Fold_Behavior
+|
 |    |-- Wood
 |    |-- Glass
 |    |-- Ceramic
@@ -204,22 +297,33 @@ Scene
 |    |-- Season
 |    |-- Era_Temporal
 |    |-- Celestial_Alignment
+|
 |    |-- Terrain
 |    |    |-- Ground
 |    |    |    |-- Texture
 |    |    |    |-- Elevation
 |    |    |    |-- Fracture_Type
+|    |    |    |-- Slope
+|    |    |    |-- Hardness
+|
 |    |    |-- Water
 |    |    |    |-- Type
 |    |    |    |-- Depth
 |    |    |    |-- Clarity
 |    |    |    |-- Motion
+|    |    |    |-- Flow_Direction
+|
 |    |    |-- Vegetation
 |    |    |    |-- Flora
 |    |    |    |-- Fungi
 |    |    |    |-- Coral
 |    |    |    |-- Alien_Flora
+|    |    |    |-- Density
+|
 |    |    |-- Mountain
+|    |    |    |-- Height
+|    |    |    |-- Ridge_Profile
+|
 |    |    |-- Cave
 |    |    |-- Depth_Zone
 |    |    |-- Desert
@@ -230,11 +334,13 @@ Scene
 |    |    |-- Plain
 |    |    |-- Floating_Island
 |    |    |-- Abyssal_Trench
+|
 |    |-- Sky
 |    |    |-- CelestialBody
 |    |    |-- Sky_Color
 |    |    |-- Sky_Phenomena
 |    |    |-- Cloud_Type
+|
 |    |-- Structure
 |    |    |-- Architecture
 |    |    |-- Signage
@@ -242,6 +348,7 @@ Scene
 |    |    |-- Ruin
 |    |    |-- Infrastructure
 |    |    |-- Artifact
+|
 |    |-- Medium_Atmosphere
 |    |    |-- Fog
 |    |    |-- Mist
@@ -257,6 +364,9 @@ Scene
 |    |    |-- Petal
 |    |    |-- Spore
 |    |    |-- Energy_Mote
+|    |    |-- Flow_Direction
+|    |    |-- Density
+|
 |    |-- Anomaly_Zone
 |    |    |-- Spatial_Rift
 |    |    |-- Gravity_Well
@@ -266,55 +376,151 @@ Scene
 |    |    |-- Void_Zone
 |    |    |-- Mana_Storm
 |    |    |-- Radiation_Field
-|
 |-- Lighting
 |    |-- MainLight
+|    |    |-- Source
+|    |    |-- Direction
+|    |    |-- Color
+|    |    |-- Intensity
+|    |    |-- Temperature
+|
 |    |-- AmbientLight
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Shadow
+|    |    |-- Hardness
+|    |    |-- Opacity
+|    |    |-- Direction
+|
 |    |-- Reflection
+|    |    |-- Intensity
+|    |    |-- Roughness
+|
 |    |-- Emission
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- VolumetricLight
+|    |    |-- Density
+|    |    |-- Color
+|
 |    |-- Neon
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Bioluminescent_Light
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Magical_Light
+|    |    |-- Color
+|    |    |-- Intensity
+
 |
 |-- Weather_Phenomena
 |    |-- Rain
+|    |    |-- Type
+|    |    |-- Intensity
+|    |    |-- Direction
+|
 |    |-- Snow
+|    |    |-- Type
+|    |    |-- Density
+|    |    |-- Direction
+|
 |    |-- Storm
+|    |    |-- Type
+|    |    |-- Intensity
+|
 |    |-- Wind
+|    |    |-- Direction
+|    |    |-- Speed
+|
 |    |-- Lightning
+|    |    |-- Frequency
+|    |    |-- Color
+|
 |    |-- Sandstorm
+|    |    |-- Density
+|    |    |-- Direction
+|
 |    |-- Volcanic
+|    |    |-- Ash_Density
+|    |    |-- Lava_Emission
+|
 |    |-- Meteor_Shower
+|    |    |-- Density
+|    |    |-- Direction
+
 |
 |-- Camera_Prompt_Tags
-|    |-- Shot_Type (Establishing, Wide, Medium, Close-up, Macro)
-|    |-- Angle (Eye-level, Low angle, High angle, Bird's eye, Dutch angle)
-|    |-- Depth_Of_Field (Shallow, Deep focus, Tilt-shift)
-|    |-- Motion (Chỉ dùng cho Video AI: Slow motion, Timelapse, Motion blur)
+|    |-- Shot_Type
+|    |-- Angle
+|    |-- Depth_Of_Field
+|    |-- Motion
+
 |
 |-- Visual_Effect
 |    |-- Glow
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Bloom
+|    |    |-- Intensity
+|
 |    |-- Fire
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Explosion
+|    |    |-- Scale
+|    |    |-- Intensity
+|
 |    |-- Aura
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Magic
+|    |    |-- Type
+|    |    |-- Color
+|
 |    |-- Bioluminescence
+|    |    |-- Color
+|    |    |-- Intensity
+|
 |    |-- Hologram
+|    |    |-- Color
+|    |    |-- Distortion
+|
 |    |-- Distortion
+|    |    |-- Type
+|    |    |-- Strength
+|
 |    |-- Energy_Wave
+|    |    |-- Direction
+|    |    |-- Intensity
+|
 |    |-- Portal_Effect
+|    |    |-- Shape
+|    |    |-- Color
+|
 |    |-- Dissolve_Particle
+|    |    |-- Density
+|    |    |-- Direction
+
 |
 |-- Narrative_Emotion
 |    |-- Mood
 |    |-- Tone
 |    |-- Atmosphere
 |    |-- Theme
+
 |
 |-- Render
-|    |-- Style (Photorealistic, Cinematic, Concept_Art, Anime, Watercolor...)
-|    |-- Rendering_Engine (Unreal_Engine_5, Octane, V-Ray...)
+|    |-- Style
+|    |-- Rendering_Engine
 |    |-- ColorPalette
+|    |-- Rendering_Quality
+|    |-- Detail_Level
+|    |-- Stylization
